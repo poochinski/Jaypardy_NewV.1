@@ -1,0 +1,22 @@
+{
+  "board": {
+    "categoriesPerRound": 6,
+    "rows": 5,
+    "round1Values": [200, 400, 600, 800, 1000],
+    "round2Values": [400, 800, 1200, 1600, 2000],
+    "dailyDoublesRound1": 1,
+    "dailyDoublesRound2": 2
+  },
+  "buzzer": {
+    "lockMode": "firstWins"
+  },
+  "wager": {
+    "minWagerWhenZero": 500
+  },
+  "timers": {
+    "clueSeconds": 15
+  },
+  "sounds": {
+    "enable": true
+  }
+}

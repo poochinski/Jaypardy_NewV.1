@@ -1,0 +1,386 @@
+/* =========================================================
+   Jaypardy Theme (Host)
+   - Pure CSS (no logic changes)
+   - Dark Jeopardy board blue, gold text, high contrast
+   ========================================================= */
+
+:root{
+  --jp-bg: #050a2a;
+  --jp-panel: rgba(10, 18, 72, 0.92);
+  --jp-panel2: rgba(14, 25, 92, 0.92);
+
+  --jp-board: #0b1f7a;        /* Jeopardy-ish blue */
+  --jp-board2: #08185f;
+
+  --jp-gold: #f2c94c;
+  --jp-gold2: #ffdd75;
+  --jp-text: #f6f7ff;
+  --jp-muted: rgba(246, 247, 255, 0.72);
+
+  --jp-border: rgba(255, 255, 255, 0.12);
+  --jp-border2: rgba(255, 255, 255, 0.20);
+  --jp-shadow: 0 10px 30px rgba(0,0,0,0.35);
+
+  --jp-radius: 16px;
+  --jp-radius-sm: 12px;
+
+  --jp-good: #21c55d;
+  --jp-bad: #ef4444;
+}
+
+/* full-page background */
+.jp-root{
+  min-height: 100vh;
+  background:
+    radial-gradient(1200px 700px at 25% 0%, rgba(255, 221, 117, 0.10), transparent 55%),
+    radial-gradient(900px 600px at 80% 20%, rgba(60, 99, 255, 0.20), transparent 55%),
+    linear-gradient(180deg, var(--jp-bg), #030621);
+  color: var(--jp-text);
+  font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+}
+
+/* top bar */
+.jp-topbar{
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--jp-border);
+  background: rgba(0,0,0,0.18);
+  backdrop-filter: blur(10px);
+  position: sticky;
+  top: 0;
+  z-index: 5;
+}
+
+.jp-title{
+  font-weight: 900;
+  letter-spacing: 1px;
+  color: var(--jp-gold2);
+  text-shadow: 0 2px 0 rgba(0,0,0,0.35);
+  margin-right: auto;
+}
+
+.jp-chip{
+  padding: 8px 10px;
+  border: 1px solid var(--jp-border);
+  background: rgba(255,255,255,0.06);
+  border-radius: 999px;
+  font-size: 13px;
+}
+
+/* layout */
+.jp-layout{
+  display: grid;
+  grid-template-columns: minmax(620px, 1fr) 420px;
+  gap: 14px;
+  padding: 14px;
+}
+
+@media (max-width: 1150px){
+  .jp-layout{
+    grid-template-columns: 1fr;
+  }
+}
+
+/* zones */
+.jp-boardZone{
+  background: rgba(255,255,255,0.04);
+  border: 1px solid var(--jp-border);
+  border-radius: var(--jp-radius);
+  box-shadow: var(--jp-shadow);
+  overflow: hidden;
+}
+
+.jp-sideZone{
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.jp-panel{
+  background: linear-gradient(180deg, var(--jp-panel), var(--jp-panel2));
+  border: 1px solid var(--jp-border);
+  border-radius: var(--jp-radius);
+  box-shadow: var(--jp-shadow);
+  padding: 14px;
+}
+
+.jp-panelTitle{
+  font-weight: 800;
+  color: var(--jp-gold2);
+  letter-spacing: 0.6px;
+  margin-bottom: 10px;
+}
+
+.jp-subTitle{
+  margin-top: 12px;
+  font-weight: 700;
+  color: rgba(255,255,255,0.88);
+}
+
+.jp-muted{
+  color: var(--jp-muted);
+}
+
+/* board header */
+.jp-boardHeader{
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--jp-border);
+  background: rgba(255,255,255,0.04);
+}
+
+.jp-boardHeaderTitle{
+  font-weight: 900;
+  color: var(--jp-gold2);
+  letter-spacing: 0.6px;
+}
+
+.jp-boardHeaderHint{
+  color: var(--jp-muted);
+  font-size: 13px;
+}
+
+/* board grid */
+.jp-boardGrid{
+  display: grid;
+  grid-template-columns: repeat(6, minmax(90px, 1fr));
+  gap: 2px;
+  background: rgba(0,0,0,0.25);
+  padding: 2px;
+}
+
+/* Each column */
+.jp-col{
+  display: grid;
+  grid-template-rows: 72px repeat(5, 84px);
+  gap: 2px;
+}
+
+.jp-cat{
+  background: linear-gradient(180deg, #0b1f7a, #08185f);
+  border: 1px solid rgba(255,255,255,0.10);
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px;
+  text-align: center;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: #ffffff;
+  text-shadow: 0 2px 0 rgba(0,0,0,0.35);
+  line-height: 1.1;
+  font-size: 14px;
+}
+
+/* cells */
+.jp-cell{
+  position: relative;
+  background: radial-gradient(circle at 50% 25%, #1a3bd1, #0b1f7a 70%);
+  border: 1px solid rgba(255,255,255,0.10);
+  border-radius: 10px;
+  cursor: pointer;
+  color: var(--jp-gold2);
+  font-weight: 900;
+  font-size: 24px;
+  letter-spacing: 0.4px;
+  text-shadow: 0 2px 0 rgba(0,0,0,0.35);
+  transition: transform 0.08s ease, filter 0.12s ease, opacity 0.12s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.jp-cell:hover{
+  filter: brightness(1.06);
+  transform: translateY(-1px);
+}
+
+.jp-cell:active{
+  transform: translateY(0px) scale(0.99);
+  filter: brightness(0.98);
+}
+
+.jp-cell:disabled{
+  cursor: not-allowed;
+  filter: grayscale(0.4);
+}
+
+.jp-dd{
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  font-size: 12px;
+  font-weight: 900;
+  color: #000;
+  background: var(--jp-gold2);
+  padding: 3px 6px;
+  border-radius: 999px;
+  border: 1px solid rgba(0,0,0,0.25);
+}
+
+/* team cards */
+.jp-teamList{
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.jp-teamCard{
+  border: 1px solid var(--jp-border2);
+  border-radius: 14px;
+  padding: 10px;
+  background: rgba(255,255,255,0.06);
+}
+
+.jp-teamHeader{
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.jp-teamName{
+  font-weight: 900;
+  letter-spacing: 0.4px;
+  color: var(--jp-gold2);
+}
+
+.jp-teamScore{
+  font-weight: 900;
+  font-size: 18px;
+  background: rgba(0,0,0,0.22);
+  border: 1px solid rgba(255,255,255,0.10);
+  padding: 6px 10px;
+  border-radius: 999px;
+}
+
+.jp-playerList{
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.jp-playerRow{
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px;
+  border: 1px solid rgba(255,255,255,0.10);
+  border-radius: 12px;
+  background: rgba(0,0,0,0.18);
+}
+
+.jp-playerLeft{
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.jp-emoji{
+  font-size: 18px;
+}
+
+.jp-playerName{
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.jp-bell{
+  margin-left: 6px;
+}
+
+.jp-teamSelect{
+  background: rgba(255,255,255,0.08);
+  border: 1px solid rgba(255,255,255,0.14);
+  color: var(--jp-text);
+  border-radius: 10px;
+  padding: 8px 10px;
+  outline: none;
+}
+
+.jp-teamSelect option{
+  color: #000;
+}
+
+/* clue box */
+.jp-clueBox{
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.jp-clueQ{
+  font-weight: 900;
+  font-size: 18px;
+  line-height: 1.25;
+  color: #fff;
+}
+
+.jp-clueA{
+  font-weight: 800;
+  color: var(--jp-gold2);
+  background: rgba(0,0,0,0.18);
+  border: 1px solid rgba(255,255,255,0.10);
+  border-radius: 12px;
+  padding: 10px;
+}
+
+.jp-clueControls{
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+
+/* buttons */
+.jp-btn{
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(255,255,255,0.16);
+  background: rgba(255,255,255,0.10);
+  color: var(--jp-text);
+  font-weight: 900;
+  cursor: pointer;
+  transition: transform 0.08s ease, filter 0.12s ease;
+}
+
+.jp-btn:hover{
+  filter: brightness(1.08);
+  transform: translateY(-1px);
+}
+
+.jp-btn:active{
+  transform: translateY(0px) scale(0.99);
+}
+
+.jp-btn:disabled{
+  opacity: 0.45;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.jp-btnGood{
+  background: rgba(33,197,93,0.20);
+  border-color: rgba(33,197,93,0.40);
+}
+
+.jp-btnBad{
+  background: rgba(239,68,68,0.20);
+  border-color: rgba(239,68,68,0.40);
+}
+
+/* host controls */
+.jp-controlsGrid{
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
