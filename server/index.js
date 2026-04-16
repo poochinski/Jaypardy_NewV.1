@@ -110,6 +110,8 @@ function freshState() {
     currentClue:   null,
     wager:         null,
     finalJaypardy: null,
+    pickingDD:     false,
+    ddPicked:      0,
     buzz:          freshBuzz(),
   };
 }
@@ -265,7 +267,6 @@ io.on("connection", (socket) => {
     if (state.phase !== "board") return;
     if (state.board?.round !== 1) return;
 
-    // Check all clues are used
     const allUsed = state.board?.columns.every((col) =>
       col.clues.every((c) => c.used)
     );
@@ -283,6 +284,108 @@ io.on("connection", (socket) => {
       buzz:        freshBuzz(),
     };
 
+    emitState();
+  });
+
+  // Host skips the current round and jumps to the next
+  socket.on("host:skipRound", () => {
+    if (!state.board) return;
+    if (state.phase !== "board" && state.phase !== "clue") return;
+
+    if (state.board.round === 1) {
+      const newBoard = buildBoard(2);
+      if (!newBoard) return;
+      state = {
+        ...state,
+        board:       newBoard,
+        phase:       "board",
+        currentClue: null,
+        wager:       null,
+        buzz:        freshBuzz(),
+      };
+    } else {
+      // Round 2 — skip to Final Jaypardy setup (just go to board phase, host triggers final manually)
+      state = {
+        ...state,
+        phase:       "board",
+        currentClue: null,
+        wager:       null,
+        buzz:        freshBuzz(),
+        board: {
+          ...state.board,
+          columns: state.board.columns.map((col) => ({
+            ...col,
+            clues: col.clues.map((c) => ({ ...c, used: true })),
+          })),
+        },
+      };
+    }
+
+    emitState();
+  });
+
+  // Host clears all DDs and enters pick-DD mode
+  socket.on("host:clearDDs", () => {
+    if (!state.board || state.phase !== "board") return;
+
+    state = {
+      ...state,
+      board: {
+        ...state.board,
+        columns: state.board.columns.map((col) => ({
+          ...col,
+          clues: col.clues.map((c) => ({ ...c, isDD: false })),
+        })),
+      },
+      pickingDD: true,
+      ddPicked:  0,
+    };
+
+    emitState();
+  });
+
+  // Host picks a clue to be the new Daily Double
+  socket.on("host:pickDD", ({ colIndex, rowIndex }) => {
+    if (!state.board || !state.pickingDD) return;
+
+    const col  = state.board.columns[colIndex];
+    if (!col) return;
+    const clue = col.clues[rowIndex];
+    if (!clue || clue.used || clue.isDD) return;
+
+    // Only rows 1-4 (index 1-4, the $400+ rows)
+    if (rowIndex < 1) return;
+
+    const ddNeeded = state.board.round === 2 ? 2 : 1;
+
+    const newDdPicked = (state.ddPicked ?? 0) + 1;
+    const donePicking = newDdPicked >= ddNeeded;
+
+    state = {
+      ...state,
+      board: {
+        ...state.board,
+        columns: state.board.columns.map((col, ci) =>
+          ci === colIndex
+            ? {
+                ...col,
+                clues: col.clues.map((c, ri) =>
+                  ri === rowIndex ? { ...c, isDD: true } : c
+                ),
+              }
+            : col
+        ),
+      },
+      pickingDD: !donePicking,
+      ddPicked:  donePicking ? 0 : newDdPicked,
+    };
+
+    emitState();
+  });
+
+  // Host cancels DD picking mode
+  socket.on("host:cancelPickDD", () => {
+    state = { ...state, pickingDD: false, ddPicked: 0 };
     emitState();
   });
 
@@ -591,7 +694,7 @@ const clientBuild = path.join(__dirname, "../client/dist");
 app.use(express.static(clientBuild));
 
 // All non-API routes serve the React app — handles /host, /player, /display
-app.get("/{*path}", (req, res) => {
+app.get("*", (req, res) => {
   res.sendFile(path.join(clientBuild, "index.html"));
 });
 

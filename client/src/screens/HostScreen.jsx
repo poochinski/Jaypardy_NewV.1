@@ -4,6 +4,7 @@ import "./jaypardyTheme.css";
 
 export default function HostScreen({ state }) {
   const [confirmReset,  setConfirmReset]  = useState(false);
+  const [confirmSkip,   setConfirmSkip]   = useState(false);
   const [swapMenu,      setSwapMenu]      = useState(null); // { colIndex, x, y }
   const swapMenuRef = useRef(null);
 
@@ -93,6 +94,12 @@ export default function HostScreen({ state }) {
   const isFinal = ["finalWager","finalClue","finalReveal","gameOver"].includes(phase);
 
   const canStartFinal = boardComplete && board?.round === 2 && phase === "board";
+
+  // DD picking mode
+  const pickingDD  = state?.pickingDD ?? false;
+  const ddPicked   = state?.ddPicked ?? 0;
+  const ddNeeded   = board?.round === 2 ? 2 : 1;
+  const canPickDD  = phase === "board" && !!board;
 
   // Count submitted wagers
   const wagerCount = finalJaypardy
@@ -585,13 +592,40 @@ export default function HostScreen({ state }) {
           justifyContent: "space-between",
           padding:        "10px 4px 10px",
         }}>
-          <div style={{ fontWeight: 900, color: "#ffdd75", fontSize: 13, letterSpacing: 0.5 }}>
+          <div style={{ fontWeight: 900, color: pickingDD ? "#ffdd75" : "#ffdd75", fontSize: 13, letterSpacing: 0.5 }}>
             Board
           </div>
           <div style={{ fontSize: 12, color: "rgba(246,247,255,0.45)" }}>
-            {board ? "Click a square to select a clue" : "Press Start Game to generate the board"}
+            {pickingDD
+              ? `Pick Daily Double ${ddPicked + 1} of ${ddNeeded} — tap a dashed cell ($400 or higher)`
+              : board ? "Click a square to select a clue" : "Press Start Game to generate the board"
+            }
           </div>
         </div>
+
+        {/* Picking DD mode banner */}
+        {pickingDD && (
+          <div style={{
+            display:      "flex",
+            alignItems:   "center",
+            justifyContent: "space-between",
+            padding:      "8px 12px",
+            background:   "rgba(255,221,117,0.12)",
+            border:       "1px solid rgba(255,221,117,0.35)",
+            borderRadius: 8,
+            margin:       "0 4px 8px",
+          }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: "#ffdd75" }}>
+              Picking DD {ddPicked + 1} of {ddNeeded} — tap any dashed cell
+            </div>
+            <button
+              onClick={() => socket.emit("host:cancelPickDD")}
+              style={{ fontSize: 11, fontWeight: 700, color: "rgba(246,247,255,0.5)", background: "transparent", border: "1px solid rgba(255,255,255,0.15)", borderRadius: 6, padding: "3px 8px", cursor: "pointer" }}
+            >
+              Cancel
+            </button>
+          </div>
+        )}
 
         {!board ? (
           <div style={{ color: "rgba(246,247,255,0.4)", fontSize: 14, padding: 16 }}>
@@ -609,23 +643,34 @@ export default function HostScreen({ state }) {
                 >
                   {col.title}
                 </div>
-                {col.clues.map((c, rowIndex) => (
-                  <button
-                    key={c.id}
-                    className="jp-cell"
-                    disabled={c.used}
-                    onClick={() => socket.emit("host:selectClue", { colIndex, rowIndex })}
-                    style={{
-                      opacity: c.used ? 0.3 : 1,
-                      cursor:  c.used ? "not-allowed" : "pointer",
-                      outline: c.isDD ? "3px solid rgba(255,215,79,0.9)" : "none",
-                    }}
-                    title={c.isDD ? "Daily Double" : ""}
-                  >
-                    ${c.value}
-                    {c.isDD && <span className="jp-dd">DD</span>}
-                  </button>
-                ))}
+                {col.clues.map((c, rowIndex) => {
+                  const isEligibleDD = pickingDD && !c.used && !c.isDD && rowIndex >= 1;
+                  const handleClick = pickingDD
+                    ? () => isEligibleDD && socket.emit("host:pickDD", { colIndex, rowIndex })
+                    : () => socket.emit("host:selectClue", { colIndex, rowIndex });
+
+                  return (
+                    <button
+                      key={c.id}
+                      className="jp-cell"
+                      disabled={c.used || (pickingDD && !isEligibleDD)}
+                      onClick={handleClick}
+                      style={{
+                        opacity: c.used ? 0.3 : 1,
+                        cursor:  c.used ? "not-allowed" : pickingDD && !isEligibleDD ? "not-allowed" : "pointer",
+                        outline: c.isDD
+                          ? "3px solid rgba(255,215,79,0.9)"
+                          : isEligibleDD
+                          ? "2px dashed rgba(255,215,79,0.6)"
+                          : "none",
+                      }}
+                      title={c.isDD ? "Daily Double" : isEligibleDD ? "Click to make this the Daily Double" : ""}
+                    >
+                      ${c.value}
+                      {c.isDD && <span className="jp-dd">DD</span>}
+                    </button>
+                  );
+                })}
               </div>
             ))}
           </div>
@@ -793,7 +838,7 @@ export default function HostScreen({ state }) {
                   borderColor: "rgba(255,221,117,0.4)",
                   color:       "#ffdd75",
                 } : {}}
-                title={!canStartRound2 ? "Available when Round 2 board is complete" : "Start Final Jaypardy"}
+                title={!canStartRound2 ? "Available when Round 1 board is complete" : "Start Round 2"}
               >
                 Round 2
               </button>
@@ -811,6 +856,55 @@ export default function HostScreen({ state }) {
               >
                 Final Jaypardy
               </button>
+
+              {/* Skip Round */}
+              {confirmSkip ? (
+                <button
+                  className="jp-btn"
+                  style={{ background:"rgba(255,150,0,0.18)", borderColor:"rgba(255,150,0,0.4)", color:"#fbbf24", gridColumn:"span 2" }}
+                  onClick={() => { socket.emit("host:skipRound"); setConfirmSkip(false); }}
+                >
+                  Confirm Skip Round
+                </button>
+              ) : (
+                <button
+                  className="jp-btn"
+                  style={{ background:"rgba(255,150,0,0.08)", borderColor:"rgba(255,150,0,0.25)", color:"#fbbf24", gridColumn:"span 2" }}
+                  disabled={phase === "lobby" || !board}
+                  onClick={() => setConfirmSkip(true)}
+                >
+                  Skip Round
+                </button>
+              )}
+              {confirmSkip && (
+                <div style={{ fontSize:11, color:"rgba(246,247,255,0.4)", gridColumn:"span 2", textAlign:"center", marginTop:-4 }}>
+                  Skips to next round without completing this one
+                  <span style={{ marginLeft:8, color:"#ffdd75", cursor:"pointer" }} onClick={() => setConfirmSkip(false)}>
+                    Cancel
+                  </span>
+                </div>
+              )}
+
+              {/* Change Daily Double */}
+              {pickingDD ? (
+                <button
+                  className="jp-btn"
+                  style={{ background:"rgba(255,221,117,0.18)", borderColor:"rgba(255,221,117,0.5)", color:"#ffdd75", gridColumn:"span 2" }}
+                  onClick={() => socket.emit("host:cancelPickDD")}
+                >
+                  Cancel DD Pick
+                </button>
+              ) : (
+                <button
+                  className="jp-btn"
+                  style={{ gridColumn:"span 2" }}
+                  disabled={phase !== "board" || !board}
+                  onClick={() => socket.emit("host:clearDDs")}
+                >
+                  Change Daily Double
+                </button>
+              )}
+
               {confirmReset ? (
                 <button
                   className="jp-btn jp-btnBad"
