@@ -18,7 +18,7 @@ function LandingScreen() {
       label:   "Player",
       emoji:   "🎯",
       desc:    "Join the game and buzz in on your phone",
-      color:   "#1a3bd1",
+      color:   "rgba(255,221,117,0.15)",
       border:  "rgba(100,140,255,0.4)",
     },
     {
