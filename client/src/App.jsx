@@ -14,126 +14,121 @@ function LandingScreen() {
 
   const roles = [
     {
-      path:    "/player",
-      label:   "Player",
-      emoji:   "🎯",
-      desc:    "Join the game and buzz in on your phone",
-      color:   "rgba(255,221,117,0.15)",
-      border:  "rgba(100,140,255,0.4)",
+      path:  "/player",
+      label: "Player",
+      emoji: "🎯",
+      desc:  "Join the game and buzz in",
+      color: "rgba(255,221,117,0.15)",
+      border: "rgba(100,140,255,0.5)",
     },
     {
-      path:    "/host",
-      label:   "Host",
-      emoji:   "👑",
-      desc:    "Run the game — pick clues and judge answers",
-      color:   "rgba(255,221,117,0.15)",
-      border:  "rgba(255,221,117,0.5)",
+      path:  "/host",
+      label: "Host",
+      emoji: "👑",
+      desc:  "Run the game",
+      color: "rgba(255,221,117,0.15)",
+      border: "rgba(255,221,117,0.6)",
       textColor: "#ffdd75",
     },
     {
-      path:    "/display",
-      label:   "Display",
-      emoji:   "📺",
-      desc:    "Show on the TV or projector for everyone to see",
-      color:   "rgba(255,255,255,0.06)",
-      border:  "rgba(255,255,255,0.15)",
+      path:  "/display",
+      label: "Display",
+      emoji: "📺",
+      desc:  "Show on the TV",
+      color: "rgba(255,255,255,0.06)",
+      border: "rgba(255,255,255,0.2)",
     },
   ];
 
   return (
-    <div className="jp-root" style={{
-      minHeight:      "100vh",
-      display:        "flex",
-      flexDirection:  "column",
-      alignItems:     "center",
-      justifyContent: "center",
-      padding:        24,
-      gap:            32,
+    <div style={{
+      minHeight:          "100vh",
+      width:              "100%",
+      backgroundImage:    "url('/splash.png')",
+      backgroundSize:     "cover",
+      backgroundPosition: "center top",
+      backgroundRepeat:   "no-repeat",
+      display:            "flex",
+      flexDirection:      "column",
+      justifyContent:     "flex-end",
+      fontFamily:         "ui-sans-serif, system-ui, sans-serif",
     }}>
 
-      {/* Logo */}
-      <div style={{ textAlign: "center" }}>
+      {/* Bottom section — buttons sit below the logo art */}
+      <div style={{
+        background:    "linear-gradient(to top, rgba(5,10,42,0.98) 60%, transparent)",
+        padding:       "40px 24px 48px",
+        display:       "flex",
+        flexDirection: "column",
+        alignItems:    "center",
+        gap:           20,
+      }}>
+
         <div style={{
-          fontSize:      "clamp(48px, 10vw, 96px)",
-          fontWeight:    900,
-          color:         "#ffdd75",
-          letterSpacing: -2,
-          lineHeight:    1,
-          textShadow:    "0 4px 0 rgba(0,0,0,0.3)",
-        }}>
-          JAYPARDY
-        </div>
-        <div style={{
-          fontSize:     16,
-          color:        "rgba(246,247,255,0.45)",
-          marginTop:    10,
-          fontWeight:   700,
-          letterSpacing: 2,
+          fontSize:      13,
+          color:         "rgba(246,247,255,0.5)",
+          fontWeight:    700,
+          letterSpacing: 3,
           textTransform: "uppercase",
         }}>
           Who are you?
         </div>
-      </div>
 
-      {/* Role cards */}
-      <div style={{
-        display:             "grid",
-        gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-        gap:                 16,
-        width:               "100%",
-        maxWidth:            720,
-      }}>
-        {roles.map((role) => (
-          <button
-            key={role.path}
-            onClick={() => navigate(role.path)}
-            style={{
-              display:       "flex",
-              flexDirection: "column",
-              alignItems:    "center",
-              gap:           12,
-              padding:       "28px 20px",
-              borderRadius:  20,
-              border:        `2px solid ${role.border}`,
-              background:    role.color,
-              cursor:        "pointer",
-              transition:    "transform 0.1s ease, filter 0.1s ease",
-            }}
-            onMouseEnter={(e) => e.currentTarget.style.filter = "brightness(1.15)"}
-            onMouseLeave={(e) => e.currentTarget.style.filter = "brightness(1)"}
-            onMouseDown={(e)  => e.currentTarget.style.transform = "scale(0.97)"}
-            onMouseUp={(e)    => e.currentTarget.style.transform = "scale(1)"}
-          >
-            <div style={{ fontSize: 48 }}>{role.emoji}</div>
-            <div style={{
-              fontSize:   24,
-              fontWeight: 900,
-              color:      role.textColor ?? "#f6f7ff",
-              letterSpacing: 0.5,
-            }}>
-              {role.label}
-            </div>
-            <div style={{
-              fontSize:   13,
-              color:      "rgba(246,247,255,0.55)",
-              textAlign:  "center",
-              lineHeight: 1.4,
-            }}>
-              {role.desc}
-            </div>
-          </button>
-        ))}
-      </div>
+        {/* Role buttons */}
+        <div style={{
+          display:             "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+          gap:                 14,
+          width:               "100%",
+          maxWidth:            640,
+        }}>
+          {roles.map((role) => (
+            <button
+              key={role.path}
+              onClick={() => navigate(role.path)}
+              style={{
+                display:       "flex",
+                flexDirection: "column",
+                alignItems:    "center",
+                gap:           8,
+                padding:       "20px 16px",
+                borderRadius:  18,
+                border:        `2px solid ${role.border}`,
+                background:    role.color,
+                cursor:        "pointer",
+                transition:    "transform 0.1s ease, filter 0.1s ease",
+              }}
+              onMouseEnter={(e) => e.currentTarget.style.filter = "brightness(1.2)"}
+              onMouseLeave={(e) => e.currentTarget.style.filter = "brightness(1)"}
+              onMouseDown={(e)  => e.currentTarget.style.transform = "scale(0.96)"}
+              onMouseUp={(e)    => e.currentTarget.style.transform = "scale(1)"}
+            >
+              <div style={{ fontSize: 36 }}>{role.emoji}</div>
+              <div style={{
+                fontSize:      20,
+                fontWeight:    900,
+                color:         role.textColor ?? "#f6f7ff",
+                letterSpacing: 0.5,
+              }}>
+                {role.label}
+              </div>
+              <div style={{
+                fontSize:  12,
+                color:     "rgba(246,247,255,0.5)",
+                textAlign: "center",
+              }}>
+                {role.desc}
+              </div>
+            </button>
+          ))}
+        </div>
 
-      {/* Connection status */}
-      <div style={{
-        fontSize:  12,
-        color:     "rgba(246,247,255,0.3)",
-        textAlign: "center",
-      }}>
-        {socket.connected ? "Connected to server ✅" : "Connecting to server…"}
-      </div>
+        {/* Connection status */}
+        <div style={{ fontSize: 11, color: "rgba(246,247,255,0.25)" }}>
+          {socket.connected ? "Connected ✅" : "Connecting…"}
+        </div>
 
+      </div>
     </div>
   );
 }
