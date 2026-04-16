@@ -328,7 +328,7 @@ const QUESTION_BANK = [
       { q: "This 1994 Quentin Tarantino film features John Travolta and Uma Thurman dancing.", a: "What is Pulp Fiction?" },
       { q: "This 1990 film stars Macaulay Culkin defending his house from burglars.", a: "What is Home Alone?" },
       { q: "This 1997 film is the highest grossing film of the decade.", a: "What is Titanic?" },
-      { q: "This 1993 film features a lawyer who cannot lie for one day.", a: "What is Liar Liar? (actually 1997)" },
+      { q: "This 1997 film features a lawyer who cannot lie for one day.", a: "What is Liar Liar?" },
       { q: "This 1999 film coined the term keeping it real.", a: "What is Office Space?" },
       { q: "This 1996 Will Smith film featured aliens attacking major cities.", a: "What is Independence Day?" },
       { q: "This 1991 film stars Jodie Foster hunting a serial killer.", a: "What is The Silence of the Lambs?" },
