@@ -396,69 +396,68 @@ export default function HostScreen({ state }) {
           flex:          1,
           display:       "flex",
           flexDirection: "column",
-          padding:       24,
-          gap:           16,
+          padding:       "20px 28px",
+          gap:           14,
         }}>
 
-          {/* Clue header */}
-          <div style={{
-            display:     "flex",
-            alignItems:  "baseline",
-            gap:         12,
-            paddingBottom: 12,
-            borderBottom: "1px solid rgba(255,255,255,0.08)",
-          }}>
-            <div style={{ fontWeight: 900, color: "#ffdd75", fontSize: 13, textTransform: "uppercase", letterSpacing: 1 }}>
+          {/* Category + value centered pills */}
+          <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:10, flexShrink:0 }}>
+            <div style={{
+              padding:       "5px 16px",
+              borderRadius:  999,
+              background:    "rgba(255,255,255,0.07)",
+              border:        "1px solid rgba(255,255,255,0.18)",
+              fontSize:      11,
+              fontWeight:    700,
+              color:         "rgba(246,247,255,0.8)",
+              textTransform: "uppercase",
+              letterSpacing: 1,
+            }}>
               {clue.category}
             </div>
-            <div style={{ fontWeight: 900, color: "#ffdd75", fontSize: 20 }}>
+            <div style={{
+              padding:      "5px 16px",
+              borderRadius: 999,
+              background:   "rgba(255,221,117,0.18)",
+              border:       "1px solid rgba(255,221,117,0.45)",
+              fontSize:     14,
+              fontWeight:   900,
+              color:        "#ffdd75",
+            }}>
               {phase === "dailyDoubleClue"
                 ? `Daily Double — $${state?.wager?.amount?.toLocaleString() ?? "?"}`
                 : `$${clue.value}`
               }
             </div>
-            {clue.isDD && (
-              <div style={{
-                marginLeft:   "auto",
-                fontSize:     11,
-                fontWeight:   900,
-                color:        "#000",
-                background:   "#ffdd75",
-                padding:      "3px 8px",
-                borderRadius: 999,
-              }}>
+            {clue.isDD && phase !== "dailyDoubleClue" && (
+              <div style={{ fontSize:11, fontWeight:900, color:"#000", background:"#ffdd75", padding:"3px 8px", borderRadius:999 }}>
                 DAILY DOUBLE
               </div>
             )}
           </div>
 
-          {/* Question */}
-          <div style={{
-            flex:       1,
-            display:    "flex",
-            alignItems: "center",
-          }}>
-            <div style={{
-              fontSize:   "clamp(20px, 3vw, 32px)",
-              fontWeight: 900,
-              color:      "#ffffff",
-              lineHeight: 1.35,
-            }}>
+          {/* Question — centered, fills space */}
+          <div style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"center", textAlign:"center" }}>
+            <div style={{ fontSize:"clamp(22px, 3vw, 36px)", fontWeight:900, color:"#ffffff", lineHeight:1.3 }}>
               {clue.question}
             </div>
           </div>
 
           {/* Answer */}
           <div style={{
-            padding:      "12px 16px",
+            display:      "flex",
+            alignItems:   "center",
+            gap:          10,
+            padding:      "10px 14px",
             borderRadius: 10,
-            background:   "rgba(255,221,117,0.10)",
+            background:   "rgba(255,221,117,0.07)",
             border:       "1px solid rgba(255,221,117,0.25)",
+            flexShrink:   0,
           }}>
-            <div style={{ fontSize: 11, color: "rgba(246,247,255,0.45)", marginBottom: 4, fontWeight: 700, letterSpacing: 0.5 }}>
-              ANSWER
+            <div style={{ fontSize:10, fontWeight:900, color:"rgba(255,221,117,0.55)", textTransform:"uppercase", letterSpacing:1, flexShrink:0 }}>
+              Answer
             </div>
-            <div style={{ fontWeight: 900, color: "#ffdd75", fontSize: 18 }}>
+            <div style={{ fontWeight:900, color:"#ffdd75", fontSize:15 }}>
               {clue.answer}
             </div>
           </div>
@@ -466,73 +465,112 @@ export default function HostScreen({ state }) {
           {/* Buzz banner */}
           {buzz.locked ? (
             <div style={{
-              padding:      "14px 18px",
-              borderRadius: 12,
-              background:   `${buzzerTeam?.color ?? "#ffdd75"}22`,
-              border:       `2px solid ${buzzerTeam?.color ?? "#ffdd75"}`,
               display:      "flex",
               alignItems:   "center",
               gap:          12,
+              padding:      "12px 16px",
+              borderRadius: 12,
+              background:   `${buzzerTeam?.color ?? "#ffdd75"}18`,
+              border:       `2px solid ${buzzerTeam?.color ?? "#ffdd75"}`,
+              flexShrink:   0,
             }}>
-              <div style={{ fontSize: 28 }}>{buzz.emoji}</div>
+              <div style={{ fontSize:24, width:40, height:40, borderRadius:"50%", background:"rgba(255,255,255,0.1)", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
+                {buzz.emoji}
+              </div>
               <div>
-                <div style={{ fontWeight: 900, fontSize: 16, color: buzzerTeam?.color ?? "#ffdd75" }}>
-                  {buzz.name}
+                <div style={{ fontWeight:900, fontSize:16, color:buzzerTeam?.color ?? "#ffdd75" }}>
+                  {buzz.name} — {buzzerTeam?.name ?? ""}
                 </div>
-                <div style={{ fontSize: 12, color: "rgba(246,247,255,0.55)" }}>
-                  {buzzerTeam?.name ?? ""} buzzed in
-                </div>
+                <div style={{ fontSize:12, color:"rgba(246,247,255,0.5)", marginTop:1 }}>buzzed in</div>
               </div>
             </div>
           ) : (
             <div style={{
-              padding:      "12px 16px",
+              padding:      "10px 16px",
               borderRadius: 10,
-              background:   "rgba(255,255,255,0.04)",
+              background:   "rgba(255,255,255,0.03)",
               border:       "1px solid rgba(255,255,255,0.08)",
-              color:        "rgba(246,247,255,0.35)",
-              fontSize:     14,
+              color:        "rgba(246,247,255,0.3)",
+              fontSize:     13,
               fontWeight:   700,
               textAlign:    "center",
+              flexShrink:   0,
             }}>
               Waiting for buzz…
             </div>
           )}
 
-          {/* Action buttons */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
+          {/* Correct / Wrong — big solid buttons */}
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, flexShrink:0 }}>
             <button
-              className="jp-btn jp-btnGood"
               onClick={() => socket.emit("host:mark", { result: "correct" })}
               disabled={!buzz.locked}
-              title={!buzz.locked ? "Nobody has buzzed yet" : ""}
+              style={{
+                padding:      "16px",
+                borderRadius: 12,
+                border:       "none",
+                background:   buzz.locked ? "#16a34a" : "rgba(22,163,74,0.25)",
+                color:        buzz.locked ? "#fff" : "rgba(255,255,255,0.3)",
+                fontSize:     17,
+                fontWeight:   900,
+                cursor:       buzz.locked ? "pointer" : "not-allowed",
+                transition:   "background 0.15s",
+              }}
             >
               Correct ✓
             </button>
             <button
-              className="jp-btn jp-btnBad"
               onClick={() => socket.emit("host:mark", { result: "wrong" })}
               disabled={!buzz.locked}
-              title={!buzz.locked ? "Nobody has buzzed yet" : ""}
+              style={{
+                padding:      "16px",
+                borderRadius: 12,
+                border:       "none",
+                background:   buzz.locked ? "#dc2626" : "rgba(220,38,38,0.25)",
+                color:        buzz.locked ? "#fff" : "rgba(255,255,255,0.3)",
+                fontSize:     17,
+                fontWeight:   900,
+                cursor:       buzz.locked ? "pointer" : "not-allowed",
+                transition:   "background 0.15s",
+              }}
             >
               Wrong ✗
             </button>
+          </div>
+
+          {/* Skip + Reset Buzzers */}
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, flexShrink:0 }}>
             <button
-              className="jp-btn"
               onClick={() => socket.emit("host:mark", { result: "skip" })}
+              style={{
+                padding:      "10px",
+                borderRadius: 8,
+                border:       "1px solid rgba(255,255,255,0.28)",
+                background:   "rgba(255,255,255,0.09)",
+                color:        "#f6f7ff",
+                fontSize:     13,
+                fontWeight:   800,
+                cursor:       "pointer",
+              }}
             >
               Skip
             </button>
+            <button
+              onClick={() => socket.emit("host:resetBuzz")}
+              style={{
+                padding:      "10px",
+                borderRadius: 8,
+                border:       "1px solid rgba(255,255,255,0.10)",
+                background:   "transparent",
+                color:        "rgba(246,247,255,0.35)",
+                fontSize:     11,
+                fontWeight:   700,
+                cursor:       "pointer",
+              }}
+            >
+              Reset Buzzers
+            </button>
           </div>
-
-          {/* Reset buzz */}
-          <button
-            className="jp-btn"
-            style={{ fontSize: 12, opacity: 0.7 }}
-            onClick={() => socket.emit("host:resetBuzz")}
-          >
-            Reset Buzzers
-          </button>
 
         </div>
       );
