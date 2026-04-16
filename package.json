@@ -1,0 +1,11 @@
+{
+  "name": "jaypardy",
+  "version": "1.0.0",
+  "scripts": {
+    "start": "node server/index.js",
+    "build": "npm install --prefix server && npm install --prefix client && npm run build --prefix client"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
