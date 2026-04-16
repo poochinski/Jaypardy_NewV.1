@@ -116,7 +116,7 @@ function LandingScreen() {
   );
 }
 
-function LoadingScreen() {
+function LoadingScreen({ socketConnected, socketId, socketError, hasState }) {
   return (
     <div
       className="jp-root"
@@ -126,18 +126,51 @@ function LoadingScreen() {
         flexDirection: "column",
         alignItems: "center",
         justifyContent: "center",
-        gap: 16,
+        gap: 12,
         color: "#f6f7ff",
+        padding: 24,
+        textAlign: "center",
       }}
     >
       <div style={{ fontSize: 32, fontWeight: 900, color: "#ffdd75" }}>JAYPARDY</div>
-      <div style={{ fontSize: 16, color: "rgba(246,247,255,0.6)" }}>Connecting to server…</div>
+      <div style={{ fontSize: 16, color: "rgba(246,247,255,0.7)" }}>Connecting to server…</div>
+
+      <div style={{ fontSize: 14, color: socketConnected ? "#22c55e" : "#ef4444" }}>
+        Socket: {socketConnected ? "Connected" : "Not connected"}
+      </div>
+
+      <div style={{ fontSize: 13, color: "rgba(246,247,255,0.65)" }}>
+        Socket ID: {socketId || "none"}
+      </div>
+
+      <div style={{ fontSize: 13, color: hasState ? "#22c55e" : "rgba(246,247,255,0.65)" }}>
+        State received: {hasState ? "Yes" : "No"}
+      </div>
+
+      <div style={{ fontSize: 12, color: "#fca5a5", maxWidth: 700 }}>
+        {socketError ? `Connect error: ${socketError}` : "No connect error reported"}
+      </div>
     </div>
   );
 }
 
 export default function App() {
-  const { gameState, lastUpdateAt } = useGameState(socket);
+  const {
+    gameState,
+    lastUpdateAt,
+    socketConnected,
+    socketId,
+    socketError,
+  } = useGameState(socket);
+
+  const loadingElement = (
+    <LoadingScreen
+      socketConnected={socketConnected}
+      socketId={socketId}
+      socketError={socketError}
+      hasState={!!gameState}
+    />
+  );
 
   return (
     <BrowserRouter>
@@ -149,7 +182,7 @@ export default function App() {
             gameState ? (
               <HostScreen state={gameState} lastUpdateAt={lastUpdateAt} />
             ) : (
-              <LoadingScreen />
+              loadingElement
             )
           }
         />
@@ -159,7 +192,7 @@ export default function App() {
             gameState ? (
               <DisplayScreen state={gameState} lastUpdateAt={lastUpdateAt} />
             ) : (
-              <LoadingScreen />
+              loadingElement
             )
           }
         />
@@ -169,7 +202,7 @@ export default function App() {
             gameState ? (
               <PlayerScreen state={gameState} lastUpdateAt={lastUpdateAt} />
             ) : (
-              <LoadingScreen />
+              loadingElement
             )
           }
         />

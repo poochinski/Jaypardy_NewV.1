@@ -3,23 +3,31 @@ import { useEffect, useState } from "react";
 export function useGameState(socket) {
   const [gameState, setGameState] = useState(null);
   const [lastUpdateAt, setLastUpdateAt] = useState(null);
+  const [socketConnected, setSocketConnected] = useState(socket?.connected ?? false);
+  const [socketId, setSocketId] = useState(socket?.id ?? null);
+  const [socketError, setSocketError] = useState(null);
 
   useEffect(() => {
     if (!socket) return;
 
     const onConnect = () => {
       console.log("✅ socket connected:", socket.id);
+      setSocketConnected(true);
+      setSocketId(socket.id);
+      setSocketError(null);
 
-      // Ask for the latest state as a backup in case the first one was missed
       socket.emit("client:requestState");
     };
 
     const onConnectError = (err) => {
-      console.log("❌ socket connect_error:", err.message);
+      console.log("❌ socket connect_error:", err?.message || err);
+      setSocketConnected(false);
+      setSocketError(err?.message || String(err));
     };
 
     const onDisconnect = (reason) => {
       console.log("❌ socket disconnected:", reason);
+      setSocketConnected(false);
     };
 
     const onStateUpdate = (state) => {
@@ -33,12 +41,11 @@ export function useGameState(socket) {
     socket.on("disconnect", onDisconnect);
     socket.on("state:update", onStateUpdate);
 
-    // IMPORTANT:
-    // attach listeners FIRST, then connect
     if (!socket.connected) {
       socket.connect();
     } else {
-      // If already connected somehow, request state immediately
+      setSocketConnected(true);
+      setSocketId(socket.id);
       socket.emit("client:requestState");
     }
 
@@ -50,5 +57,11 @@ export function useGameState(socket) {
     };
   }, [socket]);
 
-  return { gameState, lastUpdateAt };
+  return {
+    gameState,
+    lastUpdateAt,
+    socketConnected,
+    socketId,
+    socketError,
+  };
 }
