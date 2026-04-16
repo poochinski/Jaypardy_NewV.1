@@ -5,20 +5,13 @@ import "./jaypardyTheme.css";
 const EMOJIS = ["😀","😎","🔥","🐝","🧠","🎯","⚡","🍕","👑","🤖",
                  "🦊","🐸","🎸","🚀","🌊","🎲","🦁","🐯","🍀","💎"];
 
-// ─── Buzz states ──────────────────────────────────────────────────────────────
-// idle      — no clue active, button is dark/disabled
-// ready     — clue is active, button is blue and waiting
-// won       — I buzzed first — button turns green
-// lost      — someone else buzzed first — button turns red briefly then back to ready
-// answered  — host marked result, resetting
-
 export default function PlayerScreen({ state }) {
-  const [name, setName]       = useState("");
-  const [emoji, setEmoji]     = useState(EMOJIS[0]);
-  const [buzzState, setBuzzState] = useState("idle"); // idle | ready | won | lost
+  const [name,       setName]       = useState("");
+  const [emoji,      setEmoji]      = useState(EMOJIS[0]);
+  const [buzzState,  setBuzzState]  = useState("idle");
+  const [wagerInput, setWagerInput] = useState("");
   const lostTimer = useRef(null);
 
-  // Derive whether I exist in server state (handles reconnects correctly)
   const me = useMemo(
     () => (state?.players ?? []).find((p) => p.id === socket.id),
     [state]
@@ -29,47 +22,53 @@ export default function PlayerScreen({ state }) {
     [me, state]
   );
 
-  // Derive buzz state from server state every render
-  useEffect(() => {
-    const phase = state?.phase;
-    const buzz  = state?.buzz;
+  const joined = !!me;
+  const phase  = state?.phase;
+  const buzz   = state?.buzz;
 
-    if (phase !== "clue") {
-      // No clue active — clear any lost timer and go idle
+  // Am I the designated wager player for this Daily Double?
+  const isWagerPlayer = state?.currentClue?.wagerPlayerId === socket.id;
+
+  // Max wager = team score or 1000, whichever is higher
+  const maxWager = Math.max(myTeam?.score ?? 0, 1000);
+
+  // ─── Derive buzz state from server ───────────────────────────────────────
+  useEffect(() => {
+    if (phase !== "clue" && phase !== "dailyDoubleClue") {
       clearTimeout(lostTimer.current);
       setBuzzState("idle");
       return;
     }
 
     if (!buzz?.locked) {
-      // Clue is active, nobody has buzzed yet
       setBuzzState("ready");
       return;
     }
 
     if (buzz.playerId === socket.id) {
-      // I won the buzz
       clearTimeout(lostTimer.current);
       setBuzzState("won");
     } else {
-      // Someone else buzzed — show red briefly then back to ready
-      // (they might get it wrong and the clue stays active)
       setBuzzState("lost");
       clearTimeout(lostTimer.current);
       lostTimer.current = setTimeout(() => {
-        // Only go back to ready if clue is still active
         setBuzzState((prev) => (prev === "lost" ? "ready" : prev));
       }, 1200);
     }
-  }, [state?.phase, state?.buzz?.locked, state?.buzz?.playerId]);
+  }, [phase, buzz?.locked, buzz?.playerId]);
 
-  // Cleanup timer on unmount
   useEffect(() => () => clearTimeout(lostTimer.current), []);
 
-  const buzz = () => {
+  const doBuzz = () => {
     if (buzzState !== "ready") return;
-    // Send timestamp so server can compensate for network lag
     socket.emit("player:buzz", { clientTimestamp: Date.now() });
+  };
+
+  const doWager = () => {
+    const amount = parseInt(wagerInput, 10);
+    if (!isFinite(amount) || amount < 1) return;
+    socket.emit("player:submitWager", { amount });
+    setWagerInput("");
   };
 
   const join = () => {
@@ -77,54 +76,17 @@ export default function PlayerScreen({ state }) {
     socket.emit("player:join", { name: name.trim(), emoji });
   };
 
-  // Derive joined from server state — not local state
-  // This means reconnects work correctly
-  const joined = !!me;
-
-  // ─── Button appearance based on buzz state ────────────────────────────────
-
+  // ─── Button styles ────────────────────────────────────────────────────────
   const btnStyles = {
-    idle: {
-      background: "#1a1a2e",
-      border: "2px solid rgba(255,255,255,0.10)",
-      color: "rgba(255,255,255,0.25)",
-      cursor: "not-allowed",
-      transform: "none",
-    },
-    ready: {
-      background: "linear-gradient(180deg, #1a3bd1, #0f2499)",
-      border: "2px solid rgba(100,140,255,0.5)",
-      color: "#ffdd75",
-      cursor: "pointer",
-      transform: "none",
-    },
-    won: {
-      background: "linear-gradient(180deg, #16a34a, #0f7a32)",
-      border: "2px solid rgba(74,222,128,0.7)",
-      color: "#ffffff",
-      cursor: "not-allowed",
-      transform: "scale(1.03)",
-    },
-    lost: {
-      background: "linear-gradient(180deg, #b91c1c, #7f1d1d)",
-      border: "2px solid rgba(252,165,165,0.5)",
-      color: "#ffffff",
-      cursor: "not-allowed",
-      transform: "none",
-    },
+    idle:  { background: "#1a1a2e", border: "2px solid rgba(255,255,255,0.10)", color: "rgba(255,255,255,0.25)", cursor: "not-allowed" },
+    ready: { background: "#1a3bd1", border: "2px solid rgba(100,140,255,0.5)",  color: "#ffdd75",                cursor: "pointer"     },
+    won:   { background: "#16a34a", border: "2px solid rgba(74,222,128,0.7)",   color: "#ffffff",                cursor: "not-allowed", transform: "scale(1.03)" },
+    lost:  { background: "#b91c1c", border: "2px solid rgba(252,165,165,0.5)",  color: "#ffffff",                cursor: "not-allowed" },
   };
 
-  const btnLabels = {
-    idle:  "BUZZ",
-    ready: "BUZZ",
-    won:   "",
-    lost:  "",
-  };
-
-  const currentBtnStyle = btnStyles[buzzState] ?? btnStyles.idle;
+  const btnLabels = { idle: "BUZZ", ready: "BUZZ", won: "YOU GOT IT", lost: "TOO SLOW" };
 
   // ─── Render ───────────────────────────────────────────────────────────────
-
   return (
     <div className="jp-root" style={{ minHeight: "100vh", padding: 20 }}>
 
@@ -135,13 +97,13 @@ export default function PlayerScreen({ state }) {
         </div>
         {myTeam && (
           <div style={{
-            marginLeft: "auto",
-            padding: "4px 12px",
+            marginLeft:   "auto",
+            padding:      "4px 12px",
             borderRadius: 999,
-            background: myTeam.color ?? "rgba(255,255,255,0.1)",
-            color: "#fff",
-            fontWeight: 800,
-            fontSize: 13,
+            background:   myTeam.color ?? "rgba(255,255,255,0.1)",
+            color:        "#fff",
+            fontWeight:   800,
+            fontSize:     13,
           }}>
             {myTeam.name}
           </div>
@@ -154,9 +116,7 @@ export default function PlayerScreen({ state }) {
           <div className="jp-panelTitle">Join Game</div>
 
           <div style={{ marginBottom: 12 }}>
-            <div style={{ fontSize: 12, color: "rgba(246,247,255,0.6)", marginBottom: 6 }}>
-              Your name
-            </div>
+            <div style={{ fontSize: 12, color: "rgba(246,247,255,0.6)", marginBottom: 6 }}>Your name</div>
             <input
               value={name}
               onChange={(e) => setName(e.target.value)}
@@ -164,62 +124,36 @@ export default function PlayerScreen({ state }) {
               placeholder="Type your name…"
               maxLength={32}
               style={{
-                width: "100%",
-                padding: "12px 14px",
-                fontSize: 16,
-                borderRadius: 10,
-                border: "1px solid rgba(255,255,255,0.18)",
-                background: "rgba(255,255,255,0.08)",
-                color: "#f6f7ff",
-                boxSizing: "border-box",
+                width: "100%", padding: "12px 14px", fontSize: 16,
+                borderRadius: 10, border: "1px solid rgba(255,255,255,0.18)",
+                background: "rgba(255,255,255,0.08)", color: "#f6f7ff", boxSizing: "border-box",
               }}
             />
           </div>
 
           <div style={{ marginBottom: 16 }}>
-            <div style={{ fontSize: 12, color: "rgba(246,247,255,0.6)", marginBottom: 6 }}>
-              Pick an emoji
-            </div>
+            <div style={{ fontSize: 12, color: "rgba(246,247,255,0.6)", marginBottom: 6 }}>Pick an emoji</div>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
               {EMOJIS.map((e) => (
-                <button
-                  key={e}
-                  onClick={() => setEmoji(e)}
-                  style={{
-                    fontSize: 24,
-                    width: 48,
-                    height: 48,
-                    borderRadius: 12,
-                    border: emoji === e
-                      ? "2px solid #ffdd75"
-                      : "2px solid rgba(255,255,255,0.10)",
-                    background: emoji === e
-                      ? "rgba(255,221,117,0.15)"
-                      : "rgba(255,255,255,0.05)",
-                    cursor: "pointer",
-                  }}
-                >
+                <button key={e} onClick={() => setEmoji(e)} style={{
+                  fontSize: 24, width: 48, height: 48, borderRadius: 12,
+                  border: emoji === e ? "2px solid #ffdd75" : "2px solid rgba(255,255,255,0.10)",
+                  background: emoji === e ? "rgba(255,221,117,0.15)" : "rgba(255,255,255,0.05)",
+                  cursor: "pointer",
+                }}>
                   {e}
                 </button>
               ))}
             </div>
           </div>
 
-          <button
-            onClick={join}
-            disabled={!name.trim()}
-            style={{
-              width: "100%",
-              padding: 16,
-              fontSize: 18,
-              fontWeight: 900,
-              borderRadius: 14,
-              border: "none",
-              background: name.trim() ? "#1a3bd1" : "rgba(255,255,255,0.08)",
-              color: name.trim() ? "#ffdd75" : "rgba(255,255,255,0.3)",
-              cursor: name.trim() ? "pointer" : "not-allowed",
-            }}
-          >
+          <button onClick={join} disabled={!name.trim()} style={{
+            width: "100%", padding: 16, fontSize: 18, fontWeight: 900,
+            borderRadius: 14, border: "none",
+            background: name.trim() ? "#1a3bd1" : "rgba(255,255,255,0.08)",
+            color: name.trim() ? "#ffdd75" : "rgba(255,255,255,0.3)",
+            cursor: name.trim() ? "pointer" : "not-allowed",
+          }}>
             Join Game
           </button>
         </div>
@@ -229,7 +163,7 @@ export default function PlayerScreen({ state }) {
       {joined && (
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
 
-          {/* Player status card */}
+          {/* Status card */}
           <div className="jp-panel" style={{ padding: "12px 14px" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
               <div style={{ fontSize: 28 }}>{me.emoji}</div>
@@ -245,48 +179,92 @@ export default function PlayerScreen({ state }) {
             </div>
           </div>
 
-          {/* Phase hint */}
-          {state?.phase === "board" && (
+          {/* ── DAILY DOUBLE WAGER VIEW ── */}
+          {phase === "dailyDouble" && isWagerPlayer && (
+            <div className="jp-panel">
+              <div style={{
+                textAlign: "center", marginBottom: 16,
+                fontSize: 22, fontWeight: 900, color: "#ffdd75", letterSpacing: 1,
+              }}>
+                DAILY DOUBLE
+              </div>
+              <div style={{ fontSize: 13, color: "rgba(246,247,255,0.6)", marginBottom: 6 }}>
+                Enter your wager (max ${maxWager.toLocaleString()})
+              </div>
+              <input
+                type="number"
+                value={wagerInput}
+                onChange={(e) => setWagerInput(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && doWager()}
+                placeholder="e.g. 500"
+                min={1}
+                max={maxWager}
+                style={{
+                  width: "100%", padding: "14px", fontSize: 24, fontWeight: 900,
+                  borderRadius: 12, border: "2px solid #ffdd75",
+                  background: "rgba(255,221,117,0.08)", color: "#ffdd75",
+                  textAlign: "center", boxSizing: "border-box", marginBottom: 12,
+                }}
+              />
+              <button onClick={doWager} disabled={!wagerInput} style={{
+                width: "100%", padding: 16, fontSize: 18, fontWeight: 900,
+                borderRadius: 14, border: "none",
+                background: wagerInput ? "#ffdd75" : "rgba(255,255,255,0.08)",
+                color: wagerInput ? "#000" : "rgba(255,255,255,0.3)",
+                cursor: wagerInput ? "pointer" : "not-allowed",
+              }}>
+                Submit Wager
+              </button>
+            </div>
+          )}
+
+          {/* Waiting for wager (not the wager player) */}
+          {phase === "dailyDouble" && !isWagerPlayer && (
             <div style={{
-              textAlign: "center",
-              color: "rgba(246,247,255,0.45)",
-              fontSize: 14,
-              padding: "8px 0",
+              textAlign: "center", color: "#ffdd75",
+              fontSize: 20, fontWeight: 900, padding: "20px 0",
             }}>
+              DAILY DOUBLE
+              <div style={{ fontSize: 14, color: "rgba(246,247,255,0.45)", marginTop: 8, fontWeight: 400 }}>
+                Waiting for wager…
+              </div>
+            </div>
+          )}
+
+          {/* Phase hint for board */}
+          {phase === "board" && (
+            <div style={{ textAlign: "center", color: "rgba(246,247,255,0.45)", fontSize: 14, padding: "8px 0" }}>
               Waiting for host to pick a clue…
             </div>
           )}
 
-          {/* BUZZ BUTTON */}
-          <button
-            onClick={buzz}
-            style={{
-              width: "100%",
-              height: 280,
-              fontSize: buzzState === "won" || buzzState === "lost" ? 28 : 52,
-              fontWeight: 900,
-              borderRadius: 24,
-              letterSpacing: 2,
-              transition: "background 0.15s ease, transform 0.1s ease, border 0.15s ease",
-              ...currentBtnStyle,
-            }}
-          >
-            {btnLabels[buzzState]}
-          </button>
-
-          {/* Buzz hint text */}
-          <div style={{ textAlign: "center", fontSize: 12, color: "rgba(246,247,255,0.35)" }}>
-            {buzzState === "idle"  && "Waiting for a clue…"}
-            {buzzState === "ready" && !me?.teamId && "You need a team to buzz in"}
-            {buzzState === "ready" && me?.teamId  && "Tap the button the moment you know!"}
-            {buzzState === "won"   && "Answer out loud — host is listening"}
-            {buzzState === "lost"  && "Someone else got it — wait for their answer"}
-          </div>
+          {/* BUZZ BUTTON — shown during clue and dailyDoubleClue */}
+          {(phase === "clue" || phase === "dailyDoubleClue") && (
+            <>
+              <button
+                onClick={doBuzz}
+                style={{
+                  width: "100%", height: 280,
+                  fontSize: buzzState === "won" || buzzState === "lost" ? 28 : 52,
+                  fontWeight: 900, borderRadius: 24, letterSpacing: 2,
+                  transition: "background 0.15s ease, transform 0.1s ease",
+                  ...(btnStyles[buzzState] ?? btnStyles.idle),
+                }}
+              >
+                {btnLabels[buzzState]}
+              </button>
+              <div style={{ textAlign: "center", fontSize: 12, color: "rgba(246,247,255,0.35)" }}>
+                {buzzState === "idle"  && "Waiting…"}
+                {buzzState === "ready" && !me?.teamId && "You need a team to buzz in"}
+                {buzzState === "ready" && me?.teamId  && "Tap the moment you know!"}
+                {buzzState === "won"   && "Answer out loud — host is listening"}
+                {buzzState === "lost"  && "Wait for their answer…"}
+              </div>
+            </>
+          )}
 
         </div>
       )}
     </div>
   );
 }
-
-

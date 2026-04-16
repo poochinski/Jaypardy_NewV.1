@@ -45,7 +45,7 @@ function pickRandom(arr, n) {
 }
 
 function buildBoard(round = 1) {
-  const values = round === 2 ? ROUND2_VALUES : ROUND1_VALUES;
+  const values  = round === 2 ? ROUND2_VALUES : ROUND1_VALUES;
   const ddCount = round === 2 ? 2 : 1;
 
   if (QUESTION_BANK.length < 6) {
@@ -61,12 +61,12 @@ function buildBoard(round = 1) {
       id: `c${colIndex}`,
       title: c.category,
       clues: chosen.map((cl, rowIndex) => ({
-        id: `c${colIndex}r${rowIndex}`,
-        value: values[rowIndex],
+        id:       `c${colIndex}r${rowIndex}`,
+        value:    values[rowIndex],
         question: cl.q,
-        answer: cl.a,
-        used: false,
-        isDD: false,
+        answer:   cl.a,
+        used:     false,
+        isDD:     false,
       })),
     };
   });
@@ -90,24 +90,51 @@ function buildBoard(round = 1) {
 
 function freshBuzz() {
   return {
-    locked: false,
-    playerId: null,
-    teamId: null,
-    name: null,
-    emoji: null,
+    locked:    false,
+    playerId:  null,
+    teamId:    null,
+    name:      null,
+    emoji:     null,
     timestamp: null,
   };
 }
 
 function freshState() {
   return {
-    phase: "lobby",
-    players: [],
-    teams: TEAMS.map((t) => ({ ...t, score: 0 })),
+    phase:         "lobby", // lobby | board | clue | dailyDouble | dailyDoubleClue
+    players:       [],
+    teams:         TEAMS.map((t) => ({ ...t, score: 0 })),
     controlTeamId: null,
-    board: null,
+    board:         null,
+    currentClue:   null,
+    wager:         null,  // { teamId, amount } set after DD wager submitted
+    buzz:          freshBuzz(),
+  };
+}
+
+// ─── Helpers for mark logic ───────────────────────────────────────────────────
+
+function markClueUsed(state) {
+  const { colIndex, rowIndex } = state.currentClue;
+  return {
+    ...state,
+    board: {
+      ...state.board,
+      columns: state.board.columns.map((col, ci) =>
+        ci === colIndex
+          ? {
+              ...col,
+              clues: col.clues.map((clue, ri) =>
+                ri === rowIndex ? { ...clue, used: true } : clue
+              ),
+            }
+          : col
+      ),
+    },
     currentClue: null,
-    buzz: freshBuzz(),
+    phase:       "board",
+    wager:       null,
+    buzz:        freshBuzz(),
   };
 }
 
@@ -125,6 +152,7 @@ io.on("connection", (socket) => {
   console.log(`[+] ${socket.id}`);
   socket.emit("state:update", state);
 
+  // Player joins
   socket.on("player:join", ({ name, emoji }) => {
     if (state.players.length >= MAX_PLAYERS) return;
 
@@ -132,8 +160,8 @@ io.on("connection", (socket) => {
     if (!safeName) return;
 
     const safeEmoji = VALID_EMOJIS.has(emoji) ? emoji : "😀";
-    const existing = state.players.find((p) => p.id === socket.id);
-    const teamId = existing?.teamId ?? null;
+    const existing  = state.players.find((p) => p.id === socket.id);
+    const teamId    = existing?.teamId ?? null;
 
     state = {
       ...state,
@@ -146,6 +174,7 @@ io.on("connection", (socket) => {
     emitState();
   });
 
+  // Host assigns team
   socket.on("host:assignTeam", ({ playerId, teamId }) => {
     const validTeam = teamId ? state.teams.some((t) => t.id === teamId) : true;
     if (!validTeam) return;
@@ -160,6 +189,7 @@ io.on("connection", (socket) => {
     emitState();
   });
 
+  // Host starts game — lobby only
   socket.on("host:startJaypardy", () => {
     if (state.phase !== "lobby") return;
 
@@ -169,14 +199,15 @@ io.on("connection", (socket) => {
     state = {
       ...state,
       board,
-      phase: "board",
+      phase:       "board",
       currentClue: null,
-      buzz: freshBuzz(),
+      buzz:        freshBuzz(),
     };
 
     emitState();
   });
 
+  // Host generates a new board without resetting scores
   socket.on("host:newBoard", () => {
     const round = state.board?.round ?? 1;
     const board = buildBoard(round);
@@ -185,137 +216,155 @@ io.on("connection", (socket) => {
     state = {
       ...state,
       board,
-      phase: "board",
+      phase:       "board",
       currentClue: null,
-      buzz: freshBuzz(),
+      buzz:        freshBuzz(),
     };
 
     emitState();
   });
 
+  // Host selects a clue
   socket.on("host:selectClue", ({ colIndex, rowIndex }) => {
     if (state.phase !== "board" || !state.board) return;
 
-    const col = state.board.columns[colIndex];
+    const col  = state.board.columns[colIndex];
     if (!col) return;
 
     const clue = col.clues[rowIndex];
     if (!clue || clue.used) return;
 
+    // Work out who should submit the wager for a DD
+    // First player on the control team, or first player overall
+    const wagerTeamId = state.controlTeamId
+      ?? state.players.find((p) => p.teamId)?.teamId
+      ?? null;
+
+    const wagerPlayerId = state.players.find(
+      (p) => p.teamId === wagerTeamId
+    )?.id ?? null;
+
     state = {
       ...state,
-      phase: "clue",
+      phase: clue.isDD ? "dailyDouble" : "clue",
       currentClue: {
         colIndex,
         rowIndex,
-        clueId: clue.id,
+        clueId:   clue.id,
         category: col.title,
         question: clue.question,
-        answer: clue.answer,
-        value: clue.value,
-        isDD: clue.isDD,
+        answer:   clue.answer,
+        value:    clue.value,
+        isDD:     clue.isDD,
+        // Who should enter the wager (DD only)
+        wagerTeamId,
+        wagerPlayerId,
       },
-      buzz: freshBuzz(),
+      wager: null,
+      buzz:  freshBuzz(),
     };
 
     emitState();
   });
 
-  socket.on("player:buzz", () => {
-    if (state.phase !== "clue") return;
+  // Player submits Daily Double wager
+  socket.on("player:submitWager", ({ amount }) => {
+    if (state.phase !== "dailyDouble") return;
+    if (state.currentClue?.wagerPlayerId !== socket.id) return;
+
+    const parsed = parseInt(amount, 10);
+    if (!isFinite(parsed) || parsed < 1) return;
+
+    // Wager can't exceed team's current score (min 1000 if score is less)
+    const team      = state.teams.find((t) => t.id === state.currentClue.wagerTeamId);
+    const maxWager  = Math.max(team?.score ?? 0, 1000);
+    const safeWager = Math.min(parsed, maxWager);
+
+    state = {
+      ...state,
+      phase:  "dailyDoubleClue",
+      wager:  { teamId: state.currentClue.wagerTeamId, amount: safeWager },
+    };
+
+    emitState();
+  });
+
+  // Player buzzes in
+  socket.on("player:buzz", ({ clientTimestamp } = {}) => {
+    if (state.phase !== "clue" && state.phase !== "dailyDoubleClue") return;
     if (state.buzz.locked) return;
 
     const p = state.players.find((x) => x.id === socket.id);
     if (!p || !p.teamId) return;
 
+    // For DD clue only the wager player can buzz
+    if (state.phase === "dailyDoubleClue" &&
+        p.id !== state.currentClue?.wagerPlayerId) return;
+
     state = {
       ...state,
       buzz: {
-        locked: true,
-        playerId: p.id,
-        teamId: p.teamId,
-        name: p.name,
-        emoji: p.emoji,
-        timestamp: Date.now(),
+        locked:          true,
+        playerId:        p.id,
+        teamId:          p.teamId,
+        name:            p.name,
+        emoji:           p.emoji,
+        timestamp:       Date.now(),
+        clientTimestamp: clientTimestamp ?? null,
       },
     };
 
     emitState();
   });
 
+  // Host resets buzzers
   socket.on("host:resetBuzz", () => {
     state = { ...state, buzz: freshBuzz() };
     emitState();
   });
 
+  // Host marks answer
   socket.on("host:mark", ({ result }) => {
     if (!state.currentClue) return;
 
+    const isDD        = state.phase === "dailyDoubleClue";
+    const scoreChange = isDD ? (state.wager?.amount ?? 0) : state.currentClue.value;
+
     if (result === "correct" && state.buzz.locked && state.buzz.teamId) {
-      const { colIndex, rowIndex } = state.currentClue;
       state = {
-        ...state,
-        controlTeamId: state.buzz.teamId,
-        teams: state.teams.map((t) =>
-          t.id === state.buzz.teamId
-            ? { ...t, score: t.score + state.currentClue.value }
-            : t
-        ),
-        board: {
-          ...state.board,
-          columns: state.board.columns.map((col, ci) =>
-            ci === colIndex
-              ? {
-                  ...col,
-                  clues: col.clues.map((clue, ri) =>
-                    ri === rowIndex ? { ...clue, used: true } : clue
-                  ),
-                }
-              : col
+        ...markClueUsed({
+          ...state,
+          controlTeamId: state.buzz.teamId,
+          teams: state.teams.map((t) =>
+            t.id === state.buzz.teamId
+              ? { ...t, score: t.score + scoreChange }
+              : t
           ),
-        },
-        currentClue: null,
-        phase: "board",
-        buzz: freshBuzz(),
+        }),
       };
     } else if (result === "wrong" && state.buzz.locked && state.buzz.teamId) {
-      // Deduct points, unlock buzz — clue stays active for others to answer
-      state = {
+      // Deduct and unlock — for DD this ends the clue (only one chance)
+      const deducted = {
         ...state,
         teams: state.teams.map((t) =>
           t.id === state.buzz.teamId
-            ? { ...t, score: t.score - state.currentClue.value }
+            ? { ...t, score: t.score - scoreChange }
             : t
         ),
         buzz: freshBuzz(),
       };
+
+      // DD only gets one shot — close clue on wrong
+      state = isDD ? markClueUsed(deducted) : deducted;
     } else {
-      // skip, or wrong with nobody buzzed — mark used, back to board
-      const { colIndex, rowIndex } = state.currentClue;
-      state = {
-        ...state,
-        board: {
-          ...state.board,
-          columns: state.board.columns.map((col, ci) =>
-            ci === colIndex
-              ? {
-                  ...col,
-                  clues: col.clues.map((clue, ri) =>
-                    ri === rowIndex ? { ...clue, used: true } : clue
-                  ),
-                }
-              : col
-          ),
-        },
-        currentClue: null,
-        phase: "board",
-        buzz: freshBuzz(),
-      };
+      // skip or wrong with no buzz — mark used, back to board
+      state = markClueUsed(state);
     }
 
     emitState();
   });
 
+  // Host manually adjusts score
   socket.on("host:adjustScore", ({ teamId, delta }) => {
     if (typeof delta !== "number" || !isFinite(delta)) return;
     const clampedDelta = Math.max(-10000, Math.min(10000, Math.round(delta)));
@@ -330,11 +379,13 @@ io.on("connection", (socket) => {
     emitState();
   });
 
+  // Host fully resets
   socket.on("host:resetGame", () => {
     state = freshState();
     emitState();
   });
 
+  // Disconnect
   socket.on("disconnect", () => {
     console.log(`[-] ${socket.id}`);
     const wasBuzzer = state.buzz.playerId === socket.id;
@@ -342,7 +393,7 @@ io.on("connection", (socket) => {
     state = {
       ...state,
       players: state.players.filter((p) => p.id !== socket.id),
-      buzz: wasBuzzer ? freshBuzz() : state.buzz,
+      buzz:    wasBuzzer ? freshBuzz() : state.buzz,
     };
 
     emitState();
@@ -355,4 +406,3 @@ const PORT = process.env.PORT || 5000;
 server.listen(PORT, () =>
   console.log(`Jaypardy server running on http://localhost:${PORT}`)
 );
-
