@@ -591,7 +591,7 @@ const clientBuild = path.join(__dirname, "../client/dist");
 app.use(express.static(clientBuild));
 
 // All non-API routes serve the React app — handles /host, /player, /display
-app.get("*", (req, res) => {
+app.get("/{*path}", (req, res) => {
   res.sendFile(path.join(clientBuild, "index.html"));
 });
 
