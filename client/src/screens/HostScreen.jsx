@@ -1,9 +1,11 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect, useRef } from "react";
 import { socket } from "../socket";
 import "./jaypardyTheme.css";
 
 export default function HostScreen({ state }) {
-  const [confirmReset, setConfirmReset] = useState(false);
+  const [confirmReset,  setConfirmReset]  = useState(false);
+  const [swapMenu,      setSwapMenu]      = useState(null); // { colIndex, x, y }
+  const swapMenuRef = useRef(null);
 
   const players      = state?.players ?? [];
   const teams        = state?.teams ?? [];
@@ -11,7 +13,51 @@ export default function HostScreen({ state }) {
   const board        = state?.board ?? null;
   const clue         = state?.currentClue ?? null;
   const phase        = state?.phase ?? "lobby";
-  const controlTeam  = state?.controlTeamId ?? null;
+
+  // All category names currently on the board
+  const boardCategories = useMemo(() =>
+    board?.columns.map((c) => c.title) ?? [],
+  [board]);
+
+  // Categories available to swap in — everything NOT already on the board
+  // We receive these from the server's QUESTION_BANK indirectly via state
+  // Instead we'll hardcode the full list here matching questions.js
+  const ALL_CATEGORIES = [
+    "90s Disney Princess","The Office (US)","iCarly","3rd Grade US Geography",
+    "General Knowledge","Famous Scientists","Food & Cooking","Sports Records",
+    "Pop Music 2010s","TikTok Gen Pop","Pop Culture 2000s","Pop Culture 2010s",
+    "Internet & Memes","Drinks","Fast Food","NBA Basketball","NFL Football",
+    "MLB Baseball","Music: 90s Hits","Music: 2000s Hits","Music: 2010s Hits",
+    "90s Movies","2000s Movies","Reality TV","Iconic TV Shows","Social Media",
+    "Video Games",
+  ];
+
+  const availableCategories = ALL_CATEGORIES.filter(
+    (cat) => !boardCategories.includes(cat)
+  );
+
+  // Close swap menu when clicking outside
+  useEffect(() => {
+    const handler = (e) => {
+      if (swapMenuRef.current && !swapMenuRef.current.contains(e.target)) {
+        setSwapMenu(null);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  const handleCatRightClick = (e, colIndex) => {
+    if (!board || phase !== "board") return;
+    e.preventDefault();
+    setSwapMenu({ colIndex, x: e.clientX, y: e.clientY });
+  };
+
+  const doSwap = (newCategory) => {
+    if (!swapMenu) return;
+    socket.emit("host:swapCategory", { colIndex: swapMenu.colIndex, newCategory });
+    setSwapMenu(null);
+  };
 
   const teamById = useMemo(() => {
     const m = {};
@@ -312,7 +358,14 @@ export default function HostScreen({ state }) {
           <div className="jp-boardGrid">
             {board.columns.map((col, colIndex) => (
               <div key={col.id} className="jp-col">
-                <div className="jp-cat">{col.title}</div>
+                <div
+                  className="jp-cat"
+                  onContextMenu={(e) => handleCatRightClick(e, colIndex)}
+                  title="Right-click to swap this category"
+                  style={{ cursor: "context-menu" }}
+                >
+                  {col.title}
+                </div>
                 {col.clues.map((c, rowIndex) => (
                   <button
                     key={c.id}
@@ -533,6 +586,75 @@ export default function HostScreen({ state }) {
 
         </aside>
       </div>
+
+      {/* Category swap context menu */}
+      {swapMenu && (
+        <div
+          ref={swapMenuRef}
+          style={{
+            position:     "fixed",
+            top:          swapMenu.y,
+            left:         swapMenu.x,
+            zIndex:       9999,
+            background:   "#090f3a",
+            border:       "1px solid rgba(255,255,255,0.15)",
+            borderRadius: 12,
+            padding:      "8px 0",
+            minWidth:     220,
+            boxShadow:    "0 8px 32px rgba(0,0,0,0.5)",
+          }}
+        >
+          <div style={{
+            padding:      "6px 14px 10px",
+            fontSize:     11,
+            fontWeight:   700,
+            color:        "#ffdd75",
+            textTransform: "uppercase",
+            letterSpacing: 0.8,
+            borderBottom: "1px solid rgba(255,255,255,0.08)",
+            marginBottom: 4,
+          }}>
+            Swap category
+          </div>
+          {availableCategories.length === 0 ? (
+            <div style={{ padding: "8px 14px", fontSize: 13, color: "rgba(246,247,255,0.4)" }}>
+              No other categories available
+            </div>
+          ) : (
+            availableCategories.map((cat) => (
+              <div
+                key={cat}
+                onClick={() => doSwap(cat)}
+                style={{
+                  padding:    "8px 14px",
+                  fontSize:   13,
+                  fontWeight: 600,
+                  color:      "#f6f7ff",
+                  cursor:     "pointer",
+                  transition: "background 0.1s",
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.background = "rgba(255,255,255,0.08)"}
+                onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
+              >
+                {cat}
+              </div>
+            ))
+          )}
+          <div
+            onClick={() => setSwapMenu(null)}
+            style={{
+              padding:      "8px 14px",
+              fontSize:     12,
+              color:        "rgba(246,247,255,0.35)",
+              cursor:       "pointer",
+              borderTop:    "1px solid rgba(255,255,255,0.08)",
+              marginTop:    4,
+            }}
+          >
+            Cancel
+          </div>
+        </div>
+      )}
     </div>
   );
 }

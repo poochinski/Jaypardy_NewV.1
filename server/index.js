@@ -208,6 +208,57 @@ io.on("connection", (socket) => {
     emitState();
   });
 
+  // Host swaps one category on the board for a different one
+  socket.on("host:swapCategory", ({ colIndex, newCategory }) => {
+    if (!state.board) return;
+    if (colIndex < 0 || colIndex >= state.board.columns.length) return;
+
+    // Find the requested category in the bank
+    const cat = QUESTION_BANK.find((c) => c.category === newCategory);
+    if (!cat) return;
+
+    // Make sure it's not already on the board
+    const alreadyOnBoard = state.board.columns.some(
+      (col, ci) => ci !== colIndex && col.title === newCategory
+    );
+    if (alreadyOnBoard) return;
+
+    const values  = state.board.round === 2 ? ROUND2_VALUES : ROUND1_VALUES;
+    const chosen  = pickRandom(cat.clues, 5);
+    const newCol  = {
+      id:    `c${colIndex}`,
+      title: cat.category,
+      clues: chosen.map((cl, rowIndex) => ({
+        id:       `c${colIndex}r${rowIndex}`,
+        value:    values[rowIndex],
+        question: cl.q,
+        answer:   cl.a,
+        used:     false,
+        isDD:     false,
+      })),
+    };
+
+    // Re-place a DD in this column if needed
+    // Only add DD if the original column had one
+    const originalCol = state.board.columns[colIndex];
+    if (originalCol.clues.some((c) => c.isDD)) {
+      const ddRow = 1 + Math.floor(Math.random() * 4);
+      newCol.clues[ddRow].isDD = true;
+    }
+
+    state = {
+      ...state,
+      board: {
+        ...state.board,
+        columns: state.board.columns.map((col, ci) =>
+          ci === colIndex ? newCol : col
+        ),
+      },
+    };
+
+    emitState();
+  });
+
   // Host starts round 2
   socket.on("host:startRound2", () => {
     if (state.phase !== "board") return;
@@ -434,7 +485,7 @@ const clientBuild = path.join(__dirname, "../client/dist");
 app.use(express.static(clientBuild));
 
 // All non-API routes serve the React app — handles /host, /player, /display
-app.get("/{*path}", (req, res) => {
+app.get("*", (req, res) => {
   res.sendFile(path.join(clientBuild, "index.html"));
 });
 
