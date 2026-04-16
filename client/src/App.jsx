@@ -18,7 +18,7 @@ function LandingScreen() {
       label: "Player",
       emoji: "🎯",
       desc:  "Join the game and buzz in",
-      color: "rgba(255,221,117,0.15)",
+      color: "#1a3bd1",
       border: "rgba(100,140,255,0.5)",
     },
     {
@@ -46,7 +46,7 @@ function LandingScreen() {
       width:              "100%",
       backgroundImage:    "url('/splash.png')",
       backgroundSize:     "cover",
-      backgroundPosition: "center top",
+      backgroundPosition: "center 20%",
       backgroundRepeat:   "no-repeat",
       display:            "flex",
       flexDirection:      "column",
@@ -56,8 +56,8 @@ function LandingScreen() {
 
       {/* Bottom section — buttons sit below the logo art */}
       <div style={{
-        background:    "linear-gradient(to top, rgba(5,10,42,0.98) 60%, transparent)",
-        padding:       "40px 24px 48px",
+        background:    "linear-gradient(to top, rgba(5,10,42,1) 70%, transparent)",
+        padding:       "60px 24px 48px",
         display:       "flex",
         flexDirection: "column",
         alignItems:    "center",
