@@ -38,11 +38,32 @@ export default function DisplayScreen({ state }) {
 
   const [revealAnswer, setRevealAnswer] = useState(null);
   const [wrongFlash,   setWrongFlash]   = useState(null);
+  const [soundEnabled, setSoundEnabled] = useState(false);
+  const [muted,        setMuted]        = useState(false);
   const prevPhaseRef   = useRef(null);
   const prevBuzzRef    = useRef(null);
   const revealTimer    = useRef(null);
   const wrongTimer     = useRef(null);
   const ddChimeFired   = useRef(false);
+  const mutedRef       = useRef(false);
+
+  // Keep mutedRef in sync so the chime function can read it
+  useEffect(() => { mutedRef.current = muted; }, [muted]);
+
+  // Unlock audio on first interaction anywhere on the page
+  useEffect(() => {
+    const unlock = () => {
+      setSoundEnabled(true);
+      document.removeEventListener("click", unlock);
+      document.removeEventListener("touchstart", unlock);
+    };
+    document.addEventListener("click", unlock);
+    document.addEventListener("touchstart", unlock);
+    return () => {
+      document.removeEventListener("click", unlock);
+      document.removeEventListener("touchstart", unlock);
+    };
+  }, []);
 
   const visibleTeams = teams.filter((t) =>
     players.some((p) => p.teamId === t.id)
@@ -52,14 +73,14 @@ export default function DisplayScreen({ state }) {
 
   // Play DD chime exactly once when phase becomes dailyDouble
   useEffect(() => {
-    if (phase === "dailyDouble" && !ddChimeFired.current) {
+    if (phase === "dailyDouble" && !ddChimeFired.current && soundEnabled && !mutedRef.current) {
       ddChimeFired.current = true;
       playDDChime();
     }
     if (phase !== "dailyDouble") {
       ddChimeFired.current = false;
     }
-  }, [phase]);
+  }, [phase, soundEnabled]);
 
   // Detect correct answer (clue → board with a buzz locked)
   useEffect(() => {
@@ -114,70 +135,115 @@ export default function DisplayScreen({ state }) {
 
   // ─── Score strip (shared across all views) ────────────────────────────────
   const ScoreStrip = () => (
-    <div style={{
-      display:        "flex",
-      gap:            10,
-      padding:        "10px 16px",
-      borderBottom:   "1px solid rgba(255,255,255,0.08)",
-      background:     "rgba(0,0,0,0.18)",
-      flexWrap:       "wrap",
-      justifyContent: "center",
-    }}>
-      {visibleTeams.length === 0 ? (
-        <div style={{ color: "rgba(246,247,255,0.4)", fontSize: 14 }}>
-          No teams yet
+    <div style={{ position: "relative" }}>
+      {/* Sound unlock banner — shows until user clicks */}
+      {!soundEnabled && (
+        <div style={{
+          position:       "absolute",
+          bottom:         "100%",
+          left:           0,
+          right:          0,
+          background:     "rgba(255,221,117,0.15)",
+          border:         "1px solid rgba(255,221,117,0.35)",
+          color:          "#ffdd75",
+          textAlign:      "center",
+          padding:        "8px",
+          fontSize:       13,
+          fontWeight:     700,
+          letterSpacing:  0.5,
+          zIndex:         10,
+        }}>
+          Tap anywhere to enable sound
         </div>
-      ) : (
-        visibleTeams.map((t) => {
-          const teamPlayers = players.filter((p) => p.teamId === t.id);
-          const names       = teamPlayers.map((p) => p.name).join(", ");
-          return (
-            <div key={t.id} style={{
-              display:        "flex",
-              alignItems:     "center",
-              gap:            10,
-              padding:        "8px 16px",
-              borderRadius:   12,
-              background:     "rgba(0,0,0,0.25)",
-              border:         `1px solid ${t.color}44`,
-              minWidth:       140,
-              justifyContent: "center",
-            }}>
-              {/* Color dot */}
-              <div style={{
-                width:        12,
-                height:       12,
-                borderRadius: "50%",
-                background:   t.color,
-                flexShrink:   0,
-              }} />
-              {/* Player names */}
-              <div style={{
-                fontWeight: 700,
-                fontSize:   15,
-                color:      "#f6f7ff",
-              }}>
-                {names || t.name}
-              </div>
-              {/* Score box */}
-              <div style={{
-                background:   t.color,
-                color:        "#fff",
-                fontWeight:   900,
-                fontSize:     16,
-                padding:      "3px 10px",
-                borderRadius: 8,
-                minWidth:     52,
-                textAlign:    "center",
-              }}>
-                ${t.score.toLocaleString()}
-              </div>
-            </div>
-          );
-        })
       )}
+
+      <div style={{
+        display:        "flex",
+        gap:            10,
+        padding:        "10px 16px",
+        borderBottom:   "1px solid rgba(255,255,255,0.08)",
+        background:     "rgba(0,0,0,0.18)",
+        flexWrap:       "wrap",
+        justifyContent: "center",
+        alignItems:     "center",
+        position:       "relative",
+      }}>
+        {visibleTeams.length === 0 ? (
+          <div style={{ color: "rgba(246,247,255,0.4)", fontSize: 14 }}>
+            No teams yet
+          </div>
+        ) : (
+          visibleTeams.map((t) => {
+            const teamPlayers = players.filter((p) => p.teamId === t.id);
+            const names       = teamPlayers.map((p) => p.name).join(", ");
+            return (
+              <div key={t.id} style={{
+                display:        "flex",
+                alignItems:     "center",
+                gap:            10,
+                padding:        "8px 16px",
+                borderRadius:   12,
+                background:     "rgba(0,0,0,0.25)",
+                border:         `1px solid ${t.color}44`,
+                minWidth:       140,
+                justifyContent: "center",
+              }}>
+                <div style={{
+                  width:        12,
+                  height:       12,
+                  borderRadius: "50%",
+                  background:   t.color,
+                  flexShrink:   0,
+                }} />
+                <div style={{ fontWeight: 700, fontSize: 15, color: "#f6f7ff" }}>
+                  {names || t.name}
+                </div>
+                <div style={{
+                  background:   t.color,
+                  color:        "#fff",
+                  fontWeight:   900,
+                  fontSize:     16,
+                  padding:      "3px 10px",
+                  borderRadius: 8,
+                  minWidth:     52,
+                  textAlign:    "center",
+                }}>
+                  ${t.score.toLocaleString()}
+                </div>
+              </div>
+            );
+          })
+        )}
+
+        {/* Mute toggle — small button in the corner */}
+        <button
+          onClick={(e) => { e.stopPropagation(); setMuted((m) => !m); }}
+          title={muted ? "Unmute sound" : "Mute sound"}
+          style={{
+            position:     "absolute",
+            right:        12,
+            top:          "50%",
+            transform:    "translateY(-50%)",
+            background:   "rgba(255,255,255,0.06)",
+            border:       "1px solid rgba(255,255,255,0.12)",
+            borderRadius: 8,
+            color:        muted ? "rgba(246,247,255,0.3)" : "rgba(246,247,255,0.7)",
+            fontSize:     16,
+            width:        32,
+            height:       32,
+            cursor:       "pointer",
+            display:      "flex",
+            alignItems:   "center",
+            justifyContent: "center",
+            flexShrink:   0,
+          }}
+        >
+          {muted ? "🔇" : "🔊"}
+        </button>
+      </div>
     </div>
   );
+
 
   // ─── Correct answer reveal overlay ───────────────────────────────────────
   if (revealAnswer) {
