@@ -207,6 +207,32 @@ io.on("connection", (socket) => {
     emitState();
   });
 
+  // Host starts round 2
+  socket.on("host:startRound2", () => {
+    if (state.phase !== "board") return;
+    if (state.board?.round !== 1) return;
+
+    // Check all clues are used
+    const allUsed = state.board?.columns.every((col) =>
+      col.clues.every((c) => c.used)
+    );
+    if (!allUsed) return;
+
+    const newBoard = buildBoard(2);
+    if (!newBoard) return;
+
+    state = {
+      ...state,
+      board:       newBoard,
+      phase:       "board",
+      currentClue: null,
+      wager:       null,
+      buzz:        freshBuzz(),
+    };
+
+    emitState();
+  });
+
   // Host generates a new board without resetting scores
   socket.on("host:newBoard", () => {
     const round = state.board?.round ?? 1;

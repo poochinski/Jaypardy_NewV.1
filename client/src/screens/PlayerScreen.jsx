@@ -84,7 +84,7 @@ export default function PlayerScreen({ state }) {
     lost:  { background: "#b91c1c", border: "2px solid rgba(252,165,165,0.5)",  color: "#ffffff",                cursor: "not-allowed" },
   };
 
-  const btnLabels = { idle: "BUZZ", ready: "BUZZ", won: "YOU GOT IT", lost: "TOO SLOW" };
+  const btnLabels = { idle: "BUZZ", ready: "BUZZ", won: "", lost: "" };
 
   // ─── Render ───────────────────────────────────────────────────────────────
   return (
