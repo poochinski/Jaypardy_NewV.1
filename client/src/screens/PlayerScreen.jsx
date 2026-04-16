@@ -6,10 +6,14 @@ const EMOJIS = ["😀","😎","🔥","🐝","🧠","🎯","⚡","🍕","👑","�
                  "🦊","🐸","🎸","🚀","🌊","🎲","🦁","🐯","🍀","💎"];
 
 export default function PlayerScreen({ state }) {
-  const [name,       setName]       = useState("");
-  const [emoji,      setEmoji]      = useState(EMOJIS[0]);
-  const [buzzState,  setBuzzState]  = useState("idle");
-  const [wagerInput, setWagerInput] = useState("");
+  const [name,        setName]        = useState("");
+  const [emoji,       setEmoji]       = useState(EMOJIS[0]);
+  const [buzzState,   setBuzzState]   = useState("idle");
+  const [wagerInput,  setWagerInput]  = useState("");
+  const [finalWager,  setFinalWager]  = useState("");
+  const [finalAnswer, setFinalAnswer] = useState("");
+  const [wagerLocked,  setWagerLocked]  = useState(false);
+  const [answerLocked, setAnswerLocked] = useState(false);
   const lostTimer = useRef(null);
 
   const me = useMemo(
@@ -25,12 +29,33 @@ export default function PlayerScreen({ state }) {
   const joined = !!me;
   const phase  = state?.phase;
   const buzz   = state?.buzz;
+  const finalJaypardy = state?.finalJaypardy ?? null;
+
+  // Am I eligible for final? (in the wagers map)
+  const inFinal = finalJaypardy && (socket.id in (finalJaypardy.wagers ?? {}));
+  const myFinalWager = finalJaypardy?.wagers?.[socket.id] ?? null;
+
+  // Max final wager = team score (can wager $0 up to total)
+  const maxFinalWager = myTeam?.score ?? 0;
 
   // Am I the designated wager player for this Daily Double?
   const isWagerPlayer = state?.currentClue?.wagerPlayerId === socket.id;
 
-  // Max wager = team score or 1000, whichever is higher
+  // Max DD wager = team score or 1000, whichever is higher
   const maxWager = Math.max(myTeam?.score ?? 0, 1000);
+
+  const doFinalWager = () => {
+    const amount = parseInt(finalWager, 10);
+    if (!isFinite(amount) || amount < 0) return;
+    socket.emit("player:submitFinalWager", { amount });
+    setWagerLocked(true);
+  };
+
+  const doFinalAnswer = () => {
+    if (!finalAnswer.trim()) return;
+    socket.emit("player:submitFinalAnswer", { answer: finalAnswer.trim() });
+    setAnswerLocked(true);
+  };
 
   // ─── Derive buzz state from server ───────────────────────────────────────
   useEffect(() => {
@@ -84,7 +109,7 @@ export default function PlayerScreen({ state }) {
     lost:  { background: "#b91c1c", border: "2px solid rgba(252,165,165,0.5)",  color: "#ffffff",                cursor: "not-allowed" },
   };
 
-  const btnLabels = { idle: "BUZZ", ready: "BUZZ", won: "", lost: "" };
+  const btnLabels = { idle: "BUZZ", ready: "BUZZ", won: "YOU GOT IT", lost: "TOO SLOW" };
 
   // ─── Render ───────────────────────────────────────────────────────────────
   return (
@@ -235,6 +260,149 @@ export default function PlayerScreen({ state }) {
           {phase === "board" && (
             <div style={{ textAlign: "center", color: "rgba(246,247,255,0.45)", fontSize: 14, padding: "8px 0" }}>
               Waiting for host to pick a clue…
+            </div>
+          )}
+
+          {/* ── FINAL JAYPARDY — WAGER ── */}
+          {phase === "finalWager" && inFinal && (
+            <div className="jp-panel">
+              <div style={{ textAlign:"center", fontSize:22, fontWeight:900, color:"#ffdd75", marginBottom:8, letterSpacing:1 }}>
+                FINAL JAYPARDY
+              </div>
+              <div style={{ textAlign:"center", fontSize:15, fontWeight:700, color:"rgba(246,247,255,0.7)", marginBottom:16 }}>
+                Category: <span style={{ color:"#fff" }}>{finalJaypardy?.category}</span>
+              </div>
+              {wagerLocked || myFinalWager !== null ? (
+                <div style={{ textAlign:"center", padding:16 }}>
+                  <div style={{ fontSize:18, fontWeight:900, color:"#21c55d", marginBottom:6 }}>Wager submitted ✅</div>
+                  <div style={{ fontSize:24, fontWeight:900, color:"#ffdd75" }}>
+                    ${(myFinalWager ?? parseInt(finalWager)).toLocaleString()}
+                  </div>
+                  <div style={{ fontSize:13, color:"rgba(246,247,255,0.45)", marginTop:8 }}>
+                    Waiting for host to reveal the clue…
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <div style={{ fontSize:13, color:"rgba(246,247,255,0.6)", marginBottom:6 }}>
+                    Your wager (max ${maxFinalWager.toLocaleString()})
+                  </div>
+                  <input
+                    type="number"
+                    value={finalWager}
+                    onChange={(e) => setFinalWager(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && doFinalWager()}
+                    placeholder="e.g. 500"
+                    min={0}
+                    max={maxFinalWager}
+                    style={{
+                      width:"100%", padding:"14px", fontSize:24, fontWeight:900,
+                      borderRadius:12, border:"2px solid #ffdd75",
+                      background:"rgba(255,221,117,0.08)", color:"#ffdd75",
+                      textAlign:"center", boxSizing:"border-box", marginBottom:12,
+                    }}
+                  />
+                  <button onClick={doFinalWager} disabled={finalWager === ""} style={{
+                    width:"100%", padding:16, fontSize:18, fontWeight:900,
+                    borderRadius:14, border:"none",
+                    background: finalWager !== "" ? "#ffdd75" : "rgba(255,255,255,0.08)",
+                    color: finalWager !== "" ? "#000" : "rgba(255,255,255,0.3)",
+                    cursor: finalWager !== "" ? "pointer" : "not-allowed",
+                  }}>
+                    Lock In Wager
+                  </button>
+                </>
+              )}
+            </div>
+          )}
+
+          {phase === "finalWager" && !inFinal && (
+            <div style={{ textAlign:"center", color:"#ffdd75", fontSize:18, fontWeight:900, padding:"20px 0" }}>
+              FINAL JAYPARDY
+              <div style={{ fontSize:13, color:"rgba(246,247,255,0.45)", marginTop:8, fontWeight:400 }}>
+                Wagering in progress…
+              </div>
+            </div>
+          )}
+
+          {/* ── FINAL JAYPARDY — ANSWER ── */}
+          {phase === "finalClue" && inFinal && (
+            <div className="jp-panel">
+              <div style={{ textAlign:"center", fontSize:20, fontWeight:900, color:"#ffdd75", marginBottom:12 }}>
+                FINAL JAYPARDY
+              </div>
+              <div style={{ fontSize:16, fontWeight:900, color:"#fff", lineHeight:1.4, marginBottom:16, textAlign:"center" }}>
+                {finalJaypardy?.question}
+              </div>
+              {answerLocked ? (
+                <div style={{ textAlign:"center", padding:12 }}>
+                  <div style={{ fontSize:16, fontWeight:900, color:"#21c55d", marginBottom:6 }}>Answer submitted ✅</div>
+                  <div style={{ fontSize:15, color:"rgba(246,247,255,0.7)", fontStyle:"italic" }}>
+                    "{finalAnswer}"
+                  </div>
+                  <div style={{ fontSize:12, color:"rgba(246,247,255,0.4)", marginTop:8 }}>
+                    Waiting for reveal…
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <div style={{ fontSize:13, color:"rgba(246,247,255,0.6)", marginBottom:6 }}>
+                    Your answer (answer in the form of a question)
+                  </div>
+                  <input
+                    value={finalAnswer}
+                    onChange={(e) => setFinalAnswer(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && doFinalAnswer()}
+                    placeholder="Who is / What is…"
+                    maxLength={200}
+                    style={{
+                      width:"100%", padding:"14px", fontSize:16, fontWeight:700,
+                      borderRadius:12, border:"2px solid rgba(255,255,255,0.25)",
+                      background:"rgba(255,255,255,0.08)", color:"#fff",
+                      boxSizing:"border-box", marginBottom:12,
+                    }}
+                  />
+                  <button onClick={doFinalAnswer} disabled={!finalAnswer.trim()} style={{
+                    width:"100%", padding:16, fontSize:18, fontWeight:900,
+                    borderRadius:14, border:"none",
+                    background: finalAnswer.trim() ? "#1a3bd1" : "rgba(255,255,255,0.08)",
+                    color: finalAnswer.trim() ? "#ffdd75" : "rgba(255,255,255,0.3)",
+                    cursor: finalAnswer.trim() ? "pointer" : "not-allowed",
+                  }}>
+                    Submit Answer
+                  </button>
+                </>
+              )}
+            </div>
+          )}
+
+          {phase === "finalClue" && !inFinal && (
+            <div style={{ textAlign:"center", color:"rgba(246,247,255,0.45)", fontSize:14, padding:"20px 0" }}>
+              Final Jaypardy in progress…
+            </div>
+          )}
+
+          {/* ── FINAL JAYPARDY — REVEAL ── */}
+          {phase === "finalReveal" && (
+            <div style={{ textAlign:"center", padding:"20px 0" }}>
+              <div style={{ fontSize:20, fontWeight:900, color:"#ffdd75", marginBottom:8 }}>
+                FINAL JAYPARDY
+              </div>
+              <div style={{ fontSize:14, color:"rgba(246,247,255,0.5)" }}>
+                Host is revealing answers…
+              </div>
+            </div>
+          )}
+
+          {/* ── GAME OVER ── */}
+          {phase === "gameOver" && (
+            <div style={{ textAlign:"center", padding:"20px 0" }}>
+              <div style={{ fontSize:32, fontWeight:900, color:"#ffdd75", marginBottom:8 }}>
+                GAME OVER
+              </div>
+              <div style={{ fontSize:14, color:"rgba(246,247,255,0.5)" }}>
+                Thanks for playing!
+              </div>
             </div>
           )}
 

@@ -102,13 +102,14 @@ function freshBuzz() {
 
 function freshState() {
   return {
-    phase:         "lobby", // lobby | board | clue | dailyDouble | dailyDoubleClue
+    phase:         "lobby",
     players:       [],
     teams:         TEAMS.map((t) => ({ ...t, score: 0 })),
     controlTeamId: null,
     board:         null,
     currentClue:   null,
-    wager:         null,  // { teamId, amount } set after DD wager submitted
+    wager:         null,
+    finalJaypardy: null,
     buzz:          freshBuzz(),
   };
 }
@@ -446,14 +447,119 @@ io.on("connection", (socket) => {
   socket.on("host:adjustScore", ({ teamId, delta }) => {
     if (typeof delta !== "number" || !isFinite(delta)) return;
     const clampedDelta = Math.max(-10000, Math.min(10000, Math.round(delta)));
-
     state = {
       ...state,
       teams: state.teams.map((t) =>
         t.id === teamId ? { ...t, score: t.score + clampedDelta } : t
       ),
     };
+    emitState();
+  });
 
+  // ─── Final Jaypardy ───────────────────────────────────────────────────────
+
+  socket.on("host:startFinal", ({ category }) => {
+    if (state.phase !== "board") return;
+    const cat = QUESTION_BANK.find((c) => c.category === category);
+    if (!cat) return;
+    const clue = pickRandom(cat.clues, 1)[0];
+    const eligiblePlayers = state.players.filter((p) => p.teamId);
+    const wagers  = {};
+    const answers = {};
+    eligiblePlayers.forEach((p) => { wagers[p.id] = null; answers[p.id] = null; });
+    state = {
+      ...state,
+      phase: "finalWager",
+      finalJaypardy: {
+        category: cat.category,
+        question: clue.q,
+        answer:   clue.a,
+        wagers,
+        answers,
+        revealed: [],
+      },
+    };
+    emitState();
+  });
+
+  socket.on("player:submitFinalWager", ({ amount }) => {
+    if (state.phase !== "finalWager" || !state.finalJaypardy) return;
+    const p = state.players.find((x) => x.id === socket.id);
+    if (!p || !p.teamId) return;
+    if (!(socket.id in state.finalJaypardy.wagers)) return;
+    const team     = state.teams.find((t) => t.id === p.teamId);
+    const maxWager = Math.max(team?.score ?? 0, 0);
+    const parsed   = parseInt(amount, 10);
+    if (!isFinite(parsed) || parsed < 0) return;
+    const safe = Math.min(Math.max(parsed, 0), maxWager);
+    state = {
+      ...state,
+      finalJaypardy: {
+        ...state.finalJaypardy,
+        wagers: { ...state.finalJaypardy.wagers, [socket.id]: safe },
+      },
+    };
+    emitState();
+  });
+
+  socket.on("host:revealFinalClue", () => {
+    if (state.phase !== "finalWager") return;
+    state = { ...state, phase: "finalClue" };
+    emitState();
+  });
+
+  socket.on("player:submitFinalAnswer", ({ answer }) => {
+    if (state.phase !== "finalClue" || !state.finalJaypardy) return;
+    const p = state.players.find((x) => x.id === socket.id);
+    if (!p) return;
+    if (!(socket.id in state.finalJaypardy.answers)) return;
+    const safe = (answer || "").trim().slice(0, 200);
+    state = {
+      ...state,
+      finalJaypardy: {
+        ...state.finalJaypardy,
+        answers: { ...state.finalJaypardy.answers, [socket.id]: safe },
+      },
+    };
+    emitState();
+  });
+
+  socket.on("host:startFinalReveal", () => {
+    if (state.phase !== "finalClue") return;
+    state = { ...state, phase: "finalReveal" };
+    emitState();
+  });
+
+  socket.on("host:revealFinalAnswer", ({ playerId }) => {
+    if (state.phase !== "finalReveal" || !state.finalJaypardy) return;
+    if (state.finalJaypardy.revealed.includes(playerId)) return;
+    state = {
+      ...state,
+      finalJaypardy: {
+        ...state.finalJaypardy,
+        revealed: [...state.finalJaypardy.revealed, playerId],
+      },
+    };
+    emitState();
+  });
+
+  socket.on("host:markFinal", ({ playerId, correct }) => {
+    if (state.phase !== "finalReveal" || !state.finalJaypardy) return;
+    const p = state.players.find((x) => x.id === playerId);
+    if (!p) return;
+    const wager = state.finalJaypardy.wagers[playerId] ?? 0;
+    const delta = correct ? wager : -wager;
+    state = {
+      ...state,
+      teams: state.teams.map((t) =>
+        t.id === p.teamId ? { ...t, score: t.score + delta } : t
+      ),
+    };
+    emitState();
+  });
+
+  socket.on("host:endGame", () => {
+    state = { ...state, phase: "gameOver" };
     emitState();
   });
 
@@ -485,7 +591,7 @@ const clientBuild = path.join(__dirname, "../client/dist");
 app.use(express.static(clientBuild));
 
 // All non-API routes serve the React app — handles /host, /player, /display
-app.get("/{*path}", (req, res) => {
+app.get("*", (req, res) => {
   res.sendFile(path.join(clientBuild, "index.html"));
 });
 

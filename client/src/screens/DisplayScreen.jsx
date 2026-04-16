@@ -401,6 +401,160 @@ export default function DisplayScreen({ state }) {
     );
   }
 
+  // ─── Final Jaypardy — Wager phase ────────────────────────────────────────
+  if (phase === "finalWager" && state?.finalJaypardy) {
+    const fj = state.finalJaypardy;
+    const submitted = Object.values(fj.wagers).filter((w) => w !== null).length;
+    const total     = Object.keys(fj.wagers).length;
+    return (
+      <div className="jp-root" style={{ minHeight:"100vh", display:"flex", flexDirection:"column" }}>
+        <ScoreStrip />
+        <div style={{
+          flex:1, display:"flex", flexDirection:"column",
+          alignItems:"center", justifyContent:"center",
+          padding:40, textAlign:"center", gap:24,
+        }}>
+          <div style={{ fontSize:"clamp(48px, 10vw, 96px)", fontWeight:900, color:"#ffdd75", lineHeight:1, letterSpacing:-2 }}>
+            FINAL
+          </div>
+          <div style={{ fontSize:"clamp(48px, 10vw, 96px)", fontWeight:900, color:"#ffdd75", lineHeight:1, letterSpacing:-2 }}>
+            JAYPARDY
+          </div>
+          <div style={{ fontSize:"clamp(18px, 3vw, 28px)", fontWeight:700, color:"#fff", marginTop:8 }}>
+            Category: <span style={{ color:"#ffdd75" }}>{fj.category}</span>
+          </div>
+          <div style={{ fontSize:18, color:"rgba(246,247,255,0.5)", fontWeight:700 }}>
+            {submitted} / {total} wagers submitted
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ─── Final Jaypardy — Clue phase ─────────────────────────────────────────
+  if (phase === "finalClue" && state?.finalJaypardy) {
+    const fj = state.finalJaypardy;
+    const submitted = Object.values(fj.answers).filter((a) => a !== null && a !== "").length;
+    const total     = Object.keys(fj.answers).length;
+    return (
+      <div className="jp-root" style={{ minHeight:"100vh", display:"flex", flexDirection:"column" }}>
+        <ScoreStrip />
+        <div style={{ flex:1, display:"flex", flexDirection:"column", padding:40 }}>
+          <div style={{ textAlign:"center", marginBottom:32 }}>
+            <div style={{ fontSize:18, fontWeight:700, color:"rgba(246,247,255,0.5)", textTransform:"uppercase", letterSpacing:2, marginBottom:8 }}>
+              Final Jaypardy — {fj.category}
+            </div>
+          </div>
+          <div style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"center", textAlign:"center" }}>
+            <div style={{ fontSize:"clamp(28px, 5vw, 64px)", fontWeight:900, lineHeight:1.3, color:"#fff", maxWidth:900 }}>
+              {fj.question}
+            </div>
+          </div>
+          <div style={{ textAlign:"center", color:"rgba(246,247,255,0.4)", fontSize:16, fontWeight:700, padding:"16px 0" }}>
+            {submitted} / {total} answers submitted
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ─── Final Jaypardy — Reveal phase ───────────────────────────────────────
+  if (phase === "finalReveal" && state?.finalJaypardy) {
+    const fj       = state.finalJaypardy;
+    const revealed = fj.revealed ?? [];
+    return (
+      <div className="jp-root" style={{ minHeight:"100vh", display:"flex", flexDirection:"column" }}>
+        <ScoreStrip />
+        <div style={{ flex:1, display:"flex", flexDirection:"column", padding:32, gap:16 }}>
+          <div style={{ textAlign:"center", fontSize:28, fontWeight:900, color:"#ffdd75", marginBottom:8 }}>
+            FINAL JAYPARDY — REVEAL
+          </div>
+          {revealed.map((pid) => {
+            const p      = players.find((x) => x.id === pid);
+            const team   = teams.find((t) => t.id === p?.teamId);
+            const wager  = fj.wagers[pid];
+            const answer = fj.answers[pid];
+            return (
+              <div key={pid} style={{
+                padding:"16px 20px", borderRadius:14,
+                background:`${team?.color ?? "#1a3bd1"}22`,
+                border:`2px solid ${team?.color ?? "#1a3bd1"}`,
+                display:"flex", alignItems:"center", gap:16,
+              }}>
+                <div style={{ fontSize:32 }}>{p?.emoji}</div>
+                <div style={{ flex:1 }}>
+                  <div style={{ fontWeight:900, fontSize:20, color:team?.color ?? "#ffdd75" }}>
+                    {p?.name}
+                  </div>
+                  <div style={{ fontSize:16, color:"#fff", marginTop:4, fontStyle: answer ? "normal" : "italic", opacity: answer ? 1 : 0.5 }}>
+                    {answer || "No answer"}
+                  </div>
+                </div>
+                <div style={{
+                  background: team?.color ?? "#ffdd75", color:"#fff",
+                  fontWeight:900, fontSize:18, padding:"6px 14px", borderRadius:8,
+                }}>
+                  Wager: ${wager?.toLocaleString() ?? "?"}
+                </div>
+              </div>
+            );
+          })}
+          {revealed.length === 0 && (
+            <div style={{ textAlign:"center", color:"rgba(246,247,255,0.4)", fontSize:16, marginTop:40 }}>
+              Host will reveal players one by one…
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // ─── Game Over ────────────────────────────────────────────────────────────
+  if (phase === "gameOver") {
+    const sorted = [...teams]
+      .filter((t) => players.some((p) => p.teamId === t.id))
+      .sort((a, b) => b.score - a.score);
+    return (
+      <div className="jp-root" style={{ minHeight:"100vh", display:"flex", flexDirection:"column" }}>
+        <ScoreStrip />
+        <div style={{
+          flex:1, display:"flex", flexDirection:"column",
+          alignItems:"center", justifyContent:"center",
+          padding:40, gap:20, textAlign:"center",
+        }}>
+          <div style={{ fontSize:"clamp(48px, 8vw, 80px)", fontWeight:900, color:"#ffdd75", lineHeight:1 }}>
+            GAME OVER
+          </div>
+          {sorted.map((t, i) => {
+            const teamPlayers = players.filter((p) => p.teamId === t.id);
+            return (
+              <div key={t.id} style={{
+                display:"flex", alignItems:"center", gap:16,
+                padding:"14px 28px", borderRadius:16,
+                background: i === 0 ? "rgba(255,221,117,0.15)" : "rgba(255,255,255,0.04)",
+                border: i === 0 ? "2px solid rgba(255,221,117,0.5)" : "1px solid rgba(255,255,255,0.10)",
+                width:"100%", maxWidth:500,
+              }}>
+                <div style={{ fontSize:32, width:48 }}>{i === 0 ? "🏆" : `${i+1}.`}</div>
+                <div style={{ flex:1, textAlign:"left" }}>
+                  <div style={{ fontWeight:900, color: i===0 ? "#ffdd75" : "#f6f7ff", fontSize:"clamp(18px,3vw,26px)" }}>
+                    {teamPlayers.map((p) => p.name).join(", ")}
+                  </div>
+                </div>
+                <div style={{
+                  background:t.color, color:"#fff", fontWeight:900,
+                  fontSize:22, padding:"6px 16px", borderRadius:10,
+                }}>
+                  ${t.score.toLocaleString()}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
+
   // ─── Board view ───────────────────────────────────────────────────────────
   return (
     <div className="jp-root" style={{ minHeight: "100vh" }}>
