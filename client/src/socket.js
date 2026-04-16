@@ -8,4 +8,5 @@ const SERVER_URL =
 
 export const socket = io(SERVER_URL, {
   transports: ["websocket", "polling"],
+  autoConnect: false,
 });
