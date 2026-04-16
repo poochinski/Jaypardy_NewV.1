@@ -140,28 +140,30 @@ export default function App() {
 
   if (!gameState) {
     return (
-      <div className="jp-root" style={{
-        minHeight:      "100vh",
-        display:        "flex",
-        flexDirection:  "column",
-        alignItems:     "center",
-        justifyContent: "center",
-        gap:            16,
-        color:          "#f6f7ff",
-      }}>
-        <div style={{ fontSize: 32, fontWeight: 900, color: "#ffdd75" }}>
-          JAYPARDY
-        </div>
-        <div style={{ fontSize: 16, color: "rgba(246,247,255,0.6)" }}>
-          Connecting to server…
-        </div>
-        <div style={{
-          fontSize:     13,
-          color:        socket.connected ? "#21c55d" : "rgba(246,247,255,0.35)",
+      <BrowserRouter>
+        <div className="jp-root" style={{
+          minHeight:      "100vh",
+          display:        "flex",
+          flexDirection:  "column",
+          alignItems:     "center",
+          justifyContent: "center",
+          gap:            16,
+          color:          "#f6f7ff",
         }}>
-          {socket.connected ? "Connected ✅" : "Disconnected ❌"}
+          <div style={{ fontSize: 32, fontWeight: 900, color: "#ffdd75" }}>
+            JAYPARDY
+          </div>
+          <div style={{ fontSize: 16, color: "rgba(246,247,255,0.6)" }}>
+            Connecting to server…
+          </div>
+          <div style={{
+            fontSize: 13,
+            color: socket.connected ? "#21c55d" : "rgba(246,247,255,0.35)",
+          }}>
+            {socket.connected ? "Connected ✅" : "Disconnected ❌"}
+          </div>
         </div>
-      </div>
+      </BrowserRouter>
     );
   }
 
