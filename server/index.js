@@ -14,6 +14,9 @@ const io = new Server(server, { cors: { origin: "*" } });
 
 // ─── Postgres ─────────────────────────────────────────────────────────────────
 
+console.log("[db] DATABASE_URL present:", !!process.env.DATABASE_URL);
+console.log("[db] DATABASE_URL prefix:", (process.env.DATABASE_URL || "").slice(0, 20));
+
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: { rejectUnauthorized: false },
