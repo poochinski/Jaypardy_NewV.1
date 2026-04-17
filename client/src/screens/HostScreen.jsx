@@ -1,6 +1,7 @@
 import { useMemo, useState, useEffect } from "react";
 import { socket } from "../socket";
 import "./jaypardyTheme.css";
+import { playBuzz, playCorrect, playWrong, playDDChime, volumes, setVolume } from "../sounds";
 
 const ALL_CATEGORIES = [
   "90s Disney Princess","The Office (US)","iCarly","3rd Grade US Geography",
@@ -21,6 +22,14 @@ export default function HostScreen({ state }) {
   const [finalSearch,      setFinalSearch]      = useState("");
   const [swapSearch,       setSwapSearch]       = useState("");
   const [showHistory,      setShowHistory]      = useState(false);
+  const [showSounds,       setShowSounds]       = useState(false);
+  const [soundVols,        setSoundVols]        = useState({ ...volumes });
+
+  const handleVolChange = (key, val) => {
+    const num = parseFloat(val);
+    setVolume(key, num);
+    setSoundVols((prev) => ({ ...prev, [key]: num }));
+  };
 
   // ─── Theme state ──────────────────────────────────────────────────────────
   const [showSaveTheme,  setShowSaveTheme]  = useState(false);
@@ -957,6 +966,15 @@ export default function HostScreen({ state }) {
                 Game History
               </button>
 
+              {/* Sound Controls */}
+              <button
+                className="jp-btn"
+                style={{ gridColumn:"span 2", background:"rgba(34,197,94,0.10)", borderColor:"rgba(34,197,94,0.3)", color:"#86efac" }}
+                onClick={() => setShowSounds(true)}
+              >
+                🔊 Sound Levels
+              </button>
+
               {confirmReset ? (
                 <button
                   className="jp-btn jp-btnBad"
@@ -1248,6 +1266,67 @@ export default function HostScreen({ state }) {
           </div>
         </div>
       )}
+
+      {/* Sound Levels modal */}
+      {showSounds && (
+        <div style={{ position:"fixed", inset:0, zIndex:999, background:"rgba(0,0,0,0.75)", display:"flex", alignItems:"center", justifyContent:"center", padding:24 }}>
+          <div style={{ background:"#090f3a", border:"1px solid rgba(255,255,255,0.15)", borderRadius:20, padding:24, width:"100%", maxWidth:400 }}>
+            <div style={{ fontSize:20, fontWeight:900, color:"#86efac", marginBottom:20, textAlign:"center" }}>
+              Sound Levels
+            </div>
+
+            {[
+              { key:"buzz",        label:"Buzz In",      fn: playBuzz     },
+              { key:"correct",     label:"Correct",      fn: playCorrect  },
+              { key:"wrong",       label:"Wrong",        fn: playWrong    },
+              { key:"dailydouble", label:"Daily Double", fn: playDDChime  },
+            ].map(({ key, label, fn }) => (
+              <div key={key} style={{ marginBottom:18 }}>
+                <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:8 }}>
+                  <div style={{ fontWeight:700, fontSize:14, color:"#f6f7ff" }}>{label}</div>
+                  <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                    <span style={{ fontSize:12, color:"rgba(246,247,255,0.5)", minWidth:32, textAlign:"right" }}>
+                      {Math.round(soundVols[key] * 100)}%
+                    </span>
+                    <button
+                      onClick={fn}
+                      style={{
+                        padding:"4px 10px", borderRadius:6, fontSize:11, fontWeight:700,
+                        border:"1px solid rgba(134,239,172,0.3)", background:"rgba(34,197,94,0.1)",
+                        color:"#86efac", cursor:"pointer",
+                      }}
+                    >
+                      Test
+                    </button>
+                  </div>
+                </div>
+                <input
+                  type="range"
+                  min="0"
+                  max="1"
+                  step="0.05"
+                  value={soundVols[key]}
+                  onChange={(e) => handleVolChange(key, e.target.value)}
+                  style={{ width:"100%", accentColor:"#86efac", cursor:"pointer" }}
+                />
+                <div style={{ display:"flex", justifyContent:"space-between", fontSize:10, color:"rgba(246,247,255,0.25)", marginTop:2 }}>
+                  <span>Off</span>
+                  <span>Max</span>
+                </div>
+              </div>
+            ))}
+
+            <button
+              className="jp-btn"
+              style={{ width:"100%", marginTop:4 }}
+              onClick={() => setShowSounds(false)}
+            >
+              Done
+            </button>
+          </div>
+        </div>
+      )}
+
       {swapMenu && (
         <div style={{
           position:"fixed", inset:0, zIndex:9999,
