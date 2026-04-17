@@ -3,22 +3,30 @@ import { socket } from "../socket";
 import "./jaypardyTheme.css";
 import { playBuzz, playCorrect, playWrong, playDDChime, volumes, setVolume } from "../sounds";
 
-const ALL_CATEGORIES = [
-  "90s Disney Princess","The Office (US)","iCarly","3rd Grade US Geography",
-  "General Knowledge","Famous Scientists","Food & Cooking","Sports Records",
-  "Pop Music 2010s","TikTok Gen Pop","Pop Culture 2000s","Pop Culture 2010s",
-  "Internet & Memes","Drinks","Fast Food","NBA Basketball","NFL Football",
-  "MLB Baseball","Music: 90s Hits","Music: 2000s Hits","Music: 2010s Hits",
-  "90s Movies","2000s Movies","Reality TV","Iconic TV Shows","Social Media",
-  "Video Games",
-];
-
 export default function HostScreen({ state }) {
   const [confirmReset,  setConfirmReset]  = useState(false);
   const [confirmSkip,   setConfirmSkip]   = useState(false);
   const [swapMenu,      setSwapMenu]      = useState(null);
   const [showFinalSetup,   setShowFinalSetup]   = useState(false);
-  const [finalCategory,    setFinalCategory]    = useState(ALL_CATEGORIES[0]);
+  const [allCategories,    setAllCategories]    = useState([]);
+
+  // Pull live category list from server
+  useEffect(() => {
+    const onCats = (cats) => setAllCategories(cats);
+    socket.on("categories:update", onCats);
+    // Request on mount — server sends this after editor saves
+    socket.emit("editor:getAll");
+    socket.on("editor:data", (data) => {
+      const cats = data.map((c) => c.category);
+      setAllCategories(cats);
+      setFinalCategory((prev) => prev || cats[0] || "");
+    });
+    return () => {
+      socket.off("categories:update", onCats);
+      socket.off("editor:data");
+    };
+  }, []);
+  const [finalCategory,    setFinalCategory]    = useState("");
   const [finalSearch,      setFinalSearch]      = useState("");
   const [swapSearch,       setSwapSearch]       = useState("");
   const [showHistory,      setShowHistory]      = useState(false);
@@ -78,7 +86,7 @@ export default function HostScreen({ state }) {
     board?.columns.map((c) => c.title) ?? [],
   [board]);
 
-  const availableCategories = ALL_CATEGORIES.filter(
+  const availableCategories = allCategories.filter(
     (cat) => !boardCategories.includes(cat)
   );
 
@@ -1039,7 +1047,7 @@ export default function HostScreen({ state }) {
                   borderRadius:10, background:"rgba(0,0,0,0.2)",
                   marginBottom:10,
                 }}>
-                  {ALL_CATEGORIES
+                  {allCategories
                     .filter((c) => c.toLowerCase().includes(finalSearch.toLowerCase()))
                     .map((cat) => (
                       <div
