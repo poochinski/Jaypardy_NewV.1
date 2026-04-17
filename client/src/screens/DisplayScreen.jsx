@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import "./jaypardyTheme.css";
 import { playDDChime, playCorrect, playWrong } from "../sounds";
+import { socket } from "../socket";
 
 export default function DisplayScreen({ state }) {
   const phase   = state?.phase;
@@ -60,27 +61,22 @@ export default function DisplayScreen({ state }) {
       });
       clearTimeout(revealTimer.current);
       revealTimer.current = setTimeout(() => setRevealAnswer(null), 2500);
-      // Correct sound
-      if (!mutedRef.current) playCorrect();
-    }
-
-    // Skip — clue closed with no buzz
-    if (
-      (prevPhase === "clue" || prevPhase === "dailyDoubleClue") &&
-      phase === "board" &&
-      !prevBuzz?.locked
-    ) {
-      // skip is intentionally silent
     }
 
     prevPhaseRef.current = phase;
     prevBuzzRef.current  = buzz;
   }, [phase, buzz]);
 
-  // Detect buzz in — sound plays on player phone only, not display
+  // Listen for server sound cues
   useEffect(() => {
-    // intentionally no sound here
-  }, [buzz?.locked, buzz?.playerId]);
+    const onCue = (cue) => {
+      if (mutedRef.current) return;
+      if (cue === "correct") playCorrect();
+      if (cue === "wrong")   playWrong();
+    };
+    socket.on("sound:cue", onCue);
+    return () => socket.off("sound:cue", onCue);
+  }, []);
 
   // Detect wrong answer — buzz resets but clue stays active
   useEffect(() => {
@@ -99,7 +95,6 @@ export default function DisplayScreen({ state }) {
       });
       clearTimeout(wrongTimer.current);
       wrongTimer.current = setTimeout(() => setWrongFlash(null), 1500);
-      if (!mutedRef.current) playWrong();
     }
   }, [buzz?.locked]);
 
