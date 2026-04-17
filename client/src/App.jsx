@@ -19,49 +19,77 @@ function LandingScreen() {
 
   return (
     <div style={{
-      minHeight: "100vh", width: "100%",
-      backgroundImage: "url('/splash.png')", backgroundSize: "cover",
-      backgroundPosition: "center 10%", backgroundRepeat: "no-repeat",
-      display: "flex", flexDirection: "column", justifyContent: "flex-end",
-      fontFamily: "ui-sans-serif, system-ui, sans-serif",
+      minHeight:   "100vh",
+      width:       "100%",
+      background:  "#050a2a",
+      display:     "flex",
+      flexDirection: "column",
+      fontFamily:  "ui-sans-serif, system-ui, sans-serif",
+      overflow:    "hidden",
     }}>
+      {/* Logo image — always fully visible, scales with screen */}
       <div style={{
-        background: "linear-gradient(to top, rgba(5,10,42,1) 55%, rgba(5,10,42,0.4) 75%, transparent)",
-        padding: "clamp(40px,10vw,100px) clamp(16px,5vw,40px) clamp(24px,5vw,48px)",
-        display: "flex", flexDirection: "column", alignItems: "center",
-        gap: "clamp(12px,3vw,20px)",
+        flex:       "1 1 auto",
+        display:    "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        minHeight:  0,
+        padding:    "16px 16px 0",
+      }}>
+        <img
+          src="/splash.png"
+          alt="Jaypardy"
+          style={{
+            width:     "100%",
+            maxWidth:  900,
+            height:    "auto",
+            maxHeight: "55vh",
+            objectFit: "contain",
+            objectPosition: "center",
+            display:   "block",
+          }}
+        />
+      </div>
+
+      {/* Buttons section */}
+      <div style={{
+        flexShrink: 0,
+        background: "linear-gradient(to top, rgba(5,10,42,1) 80%, transparent)",
+        padding:    "clamp(16px,4vw,40px) clamp(16px,5vw,40px) clamp(20px,4vw,40px)",
+        display:    "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        gap:        "clamp(10px,2vw,16px)",
       }}>
         <div style={{ fontSize: "clamp(11px,2vw,14px)", color: "rgba(246,247,255,0.5)", fontWeight: 700, letterSpacing: 3, textTransform: "uppercase" }}>
           Who are you?
         </div>
 
-        {/* Main 3 role cards — all same style as Host */}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: "clamp(8px,2vw,14px)", width: "100%", maxWidth: 640 }}>
           {roles.map((role) => (
             <button key={role.path} onClick={() => navigate(role.path)} style={{
               display: "flex", flexDirection: "column", alignItems: "center",
-              gap: "clamp(4px,1.5vw,8px)", padding: "clamp(14px,3vw,22px) clamp(8px,2vw,16px)",
+              gap: "clamp(4px,1.5vw,8px)", padding: "clamp(12px,3vw,20px) clamp(8px,2vw,16px)",
               borderRadius: "clamp(12px,3vw,18px)",
               border: "2px solid rgba(255,221,117,0.5)",
               background: "rgba(255,221,117,0.10)",
               cursor: "pointer", minWidth: 0,
             }}>
-              <div style={{ fontSize: "clamp(24px,5vw,36px)" }}>{role.emoji}</div>
+              <div style={{ fontSize: "clamp(22px,4vw,34px)" }}>{role.emoji}</div>
               <div style={{ fontSize: "clamp(14px,3vw,20px)", fontWeight: 900, color: "#ffdd75" }}>{role.label}</div>
               <div style={{ fontSize: "clamp(10px,2vw,12px)", color: "rgba(246,247,255,0.5)", textAlign: "center", lineHeight: 1.3 }}>{role.desc}</div>
             </button>
           ))}
         </div>
 
-        {/* Editor card */}
         <button onClick={() => navigate("/editor")} style={{
           display: "flex", alignItems: "center", gap: 12,
-          padding: "12px 24px", borderRadius: 12,
+          padding: "10px 24px", borderRadius: 12,
           border: "1px solid rgba(255,221,117,0.2)",
           background: "rgba(255,221,117,0.05)",
           cursor: "pointer", width: "100%", maxWidth: 640,
         }}>
-          <span style={{ fontSize: 18 }}>✏️</span>
+          <span style={{ fontSize: 16 }}>✏️</span>
           <div style={{ textAlign: "left" }}>
             <div style={{ fontSize: 13, fontWeight: 700, color: "rgba(255,221,117,0.6)" }}>Clue Editor</div>
             <div style={{ fontSize: 11, color: "rgba(246,247,255,0.3)" }}>Add, edit, or delete categories and clues</div>
