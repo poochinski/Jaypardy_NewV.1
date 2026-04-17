@@ -20,7 +20,6 @@ const pool = new Pool({
 });
 
 async function initDb() {
-  // Themes table
   await pool.query(`
     CREATE TABLE IF NOT EXISTS themes (
       name        TEXT PRIMARY KEY,
@@ -29,7 +28,6 @@ async function initDb() {
     )
   `);
 
-  // Categories table — clues stored as JSONB array of {q, a, d?}
   await pool.query(`
     CREATE TABLE IF NOT EXISTS categories (
       name        TEXT PRIMARY KEY,
@@ -38,19 +36,15 @@ async function initDb() {
     )
   `);
 
-  // Seed built-in categories from questions.js — only INSERT, never overwrite
-  // This means existing edits in Postgres are always preserved
-  let seeded = 0;
-  for (const cat of QUESTION_BANK) {
+  if (QUESTION_BANK.length > 0) {
+    const values = QUESTION_BANK.map((_, i) => `($${i * 2 + 1}, $${i * 2 + 2})`).join(", ");
+    const params = QUESTION_BANK.flatMap((cat) => [cat.category, JSON.stringify(cat.clues)]);
     const result = await pool.query(
-      `INSERT INTO categories (name, clues)
-       VALUES ($1, $2)
-       ON CONFLICT (name) DO NOTHING`,
-      [cat.category, JSON.stringify(cat.clues)]
+      `INSERT INTO categories (name, clues) VALUES ${values} ON CONFLICT (name) DO NOTHING`,
+      params
     );
-    if (result.rowCount > 0) seeded++;
+    if (result.rowCount > 0) console.log(`[db] seeded ${result.rowCount} new categories`);
   }
-  if (seeded > 0) console.log(`[db] seeded ${seeded} new categories from questions.js`);
 
   console.log("[db] tables ready");
 }
