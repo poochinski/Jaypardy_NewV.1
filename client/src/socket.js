@@ -6,4 +6,7 @@ const SERVER_URL =
     ? window.location.origin
     : `http://${window.location.hostname}:5000`);
 
-export const socket = io(SERVER_URL);
+export const socket = io(SERVER_URL, {
+  transports: ["websocket"],
+  upgrade: false,
+});
