@@ -19,42 +19,20 @@ function LandingScreen() {
 
   return (
     <div style={{
-      minHeight:   "100vh",
-      width:       "100%",
-      background:  "#050a2a",
-      display:     "flex",
-      flexDirection: "column",
-      fontFamily:  "ui-sans-serif, system-ui, sans-serif",
-      overflow:    "hidden",
+      minHeight:           "100vh",
+      width:               "100%",
+      backgroundImage:     "url('/splash.png')",
+      backgroundSize:      "cover",
+      backgroundPosition:  "center center",
+      backgroundRepeat:    "no-repeat",
+      backgroundAttachment:"fixed",
+      display:             "flex",
+      flexDirection:       "column",
+      justifyContent:      "flex-end",
+      fontFamily:          "ui-sans-serif, system-ui, sans-serif",
     }}>
-      {/* Logo image — always fully visible, scales with screen */}
       <div style={{
-        flex:       "1 1 auto",
-        display:    "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        minHeight:  0,
-        padding:    "16px 16px 0",
-      }}>
-        <img
-          src="/splash.png"
-          alt="Jaypardy"
-          style={{
-            width:     "100%",
-            maxWidth:  900,
-            height:    "auto",
-            maxHeight: "55vh",
-            objectFit: "contain",
-            objectPosition: "center",
-            display:   "block",
-          }}
-        />
-      </div>
-
-      {/* Buttons section */}
-      <div style={{
-        flexShrink: 0,
-        background: "linear-gradient(to top, rgba(5,10,42,1) 80%, transparent)",
+        background: "linear-gradient(to top, rgba(5,10,42,0.97) 40%, rgba(5,10,42,0.3) 60%, transparent 80%)",
         padding:    "clamp(16px,4vw,40px) clamp(16px,5vw,40px) clamp(20px,4vw,40px)",
         display:    "flex",
         flexDirection: "column",
