@@ -7,6 +7,8 @@ const SERVER_URL =
     : `http://${window.location.hostname}:5000`);
 
 export const socket = io(SERVER_URL, {
-  transports: ["websocket", "polling"],
   autoConnect: false,
+  reconnection: true,
+  reconnectionAttempts: 10,
+  reconnectionDelay: 1000,
 });
