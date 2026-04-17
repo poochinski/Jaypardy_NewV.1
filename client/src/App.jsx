@@ -33,7 +33,7 @@ function LandingScreen() {
     }}>
       <div style={{
         background: "linear-gradient(to top, rgba(5,10,42,0.97) 40%, rgba(5,10,42,0.3) 60%, transparent 80%)",
-        padding:    "clamp(80px,15vw,140px) clamp(16px,5vw,40px) clamp(20px,4vw,40px)",
+        padding:    "clamp(120px,20vw,200px) clamp(16px,5vw,40px) clamp(20px,4vw,40px)",
         display:    "flex",
         flexDirection: "column",
         alignItems: "center",
