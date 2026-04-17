@@ -621,6 +621,7 @@ io.on("connection", (socket) => {
         }),
         gameLog: [...(state.gameLog ?? []), logEntry],
       };
+      io.emit("sound:cue", "correct");
     } else if (result === "wrong" && state.buzz.locked && state.buzz.teamId) {
       logEntry = {
         ts, result: "wrong",
@@ -642,6 +643,7 @@ io.on("connection", (socket) => {
         gameLog: [...(state.gameLog ?? []), logEntry],
       };
       state = isDD ? markClueUsed(deducted) : deducted;
+      io.emit("sound:cue", "wrong");
     } else {
       logEntry = {
         ts, result: "skip",
