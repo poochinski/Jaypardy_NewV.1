@@ -1,32 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import "./jaypardyTheme.css";
-
-// ─── Daily Double chime using Web Audio API ───────────────────────────────────
-function playDDChime() {
-  try {
-    const ctx = new (window.AudioContext || window.webkitAudioContext)();
-
-    const notes = [523.25, 659.25, 783.99, 1046.50]; // C5 E5 G5 C6
-    notes.forEach((freq, i) => {
-      const osc  = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-
-      osc.type      = "sine";
-      osc.frequency.setValueAtTime(freq, ctx.currentTime + i * 0.18);
-
-      gain.gain.setValueAtTime(0, ctx.currentTime + i * 0.18);
-      gain.gain.linearRampToValueAtTime(0.4, ctx.currentTime + i * 0.18 + 0.04);
-      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + i * 0.18 + 0.5);
-
-      osc.start(ctx.currentTime + i * 0.18);
-      osc.stop(ctx.currentTime + i * 0.18 + 0.55);
-    });
-  } catch (e) {
-    // Audio not supported — fail silently
-  }
-}
+import { playDDChime, playBuzz, playCorrect, playWrong, playSkip } from "../sounds";
 
 export default function DisplayScreen({ state }) {
   const phase   = state?.phase;
@@ -102,11 +76,29 @@ export default function DisplayScreen({ state }) {
       });
       clearTimeout(revealTimer.current);
       revealTimer.current = setTimeout(() => setRevealAnswer(null), 2500);
+      // Correct sound
+      if (soundEnabled && !mutedRef.current) playCorrect();
+    }
+
+    // Skip — clue closed with no buzz
+    if (
+      (prevPhase === "clue" || prevPhase === "dailyDoubleClue") &&
+      phase === "board" &&
+      !prevBuzz?.locked
+    ) {
+      if (soundEnabled && !mutedRef.current) playSkip();
     }
 
     prevPhaseRef.current = phase;
     prevBuzzRef.current  = buzz;
   }, [phase, buzz]);
+
+  // Detect buzz in
+  useEffect(() => {
+    if (buzz?.locked && buzz?.playerId && soundEnabled && !mutedRef.current) {
+      playBuzz();
+    }
+  }, [buzz?.locked, buzz?.playerId]);
 
   // Detect wrong answer — buzz resets but clue stays active
   useEffect(() => {
@@ -125,6 +117,8 @@ export default function DisplayScreen({ state }) {
       });
       clearTimeout(wrongTimer.current);
       wrongTimer.current = setTimeout(() => setWrongFlash(null), 1500);
+      // Wrong sound
+      if (soundEnabled && !mutedRef.current) playWrong();
     }
   }, [buzz?.locked]);
 
@@ -132,6 +126,25 @@ export default function DisplayScreen({ state }) {
     clearTimeout(revealTimer.current);
     clearTimeout(wrongTimer.current);
   }, []);
+
+  // ─── Score flash tracking ─────────────────────────────────────────────────
+  const [flashTeams, setFlashTeams] = useState({});
+  const prevScoresRef = useRef({});
+
+  useEffect(() => {
+    const newFlashes = {};
+    teams.forEach((t) => {
+      const prev = prevScoresRef.current[t.id];
+      if (prev !== undefined && prev !== t.score) {
+        newFlashes[t.id] = t.score > prev ? "positive" : "negative";
+      }
+      prevScoresRef.current[t.id] = t.score;
+    });
+    if (Object.keys(newFlashes).length > 0) {
+      setFlashTeams(newFlashes);
+      setTimeout(() => setFlashTeams({}), 700);
+    }
+  }, [teams]);
 
   // ─── Score strip (shared across all views) ────────────────────────────────
   const ScoreStrip = () => (
@@ -176,6 +189,7 @@ export default function DisplayScreen({ state }) {
           visibleTeams.map((t) => {
             const teamPlayers = players.filter((p) => p.teamId === t.id);
             const names       = teamPlayers.map((p) => p.name).join(", ");
+            const flash       = flashTeams[t.id];
             return (
               <div key={t.id} style={{
                 display:        "flex",
@@ -183,10 +197,13 @@ export default function DisplayScreen({ state }) {
                 gap:            10,
                 padding:        "8px 16px",
                 borderRadius:   12,
-                background:     "rgba(0,0,0,0.25)",
-                border:         `1px solid ${t.color}44`,
+                background:     flash
+                  ? flash === "positive" ? `${t.color}55` : "rgba(239,68,68,0.3)"
+                  : "rgba(0,0,0,0.25)",
+                border:         `1px solid ${flash ? t.color : t.color + "44"}`,
                 minWidth:       140,
                 justifyContent: "center",
+                transition:     "background 0.15s ease, border 0.15s ease",
               }}>
                 <div style={{
                   width:        12,
@@ -207,6 +224,8 @@ export default function DisplayScreen({ state }) {
                   borderRadius: 8,
                   minWidth:     52,
                   textAlign:    "center",
+                  transform:    flash ? "scale(1.12)" : "scale(1)",
+                  transition:   "transform 0.15s ease",
                 }}>
                   ${t.score.toLocaleString()}
                 </div>

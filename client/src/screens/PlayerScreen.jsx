@@ -1,6 +1,7 @@
 import { useMemo, useState, useEffect, useRef } from "react";
 import { socket } from "../socket";
 import "./jaypardyTheme.css";
+import { playBuzz, playCorrect, playWrong } from "../sounds";
 
 const EMOJIS = ["😀","😎","🔥","🐝","🧠","🎯","⚡","🍕","👑","🤖",
                  "🦊","🐸","🎸","🚀","🌊","🎲","🦁","🐯","🍀","💎"];
@@ -73,8 +74,10 @@ export default function PlayerScreen({ state }) {
     if (buzz.playerId === socket.id) {
       clearTimeout(lostTimer.current);
       setBuzzState("won");
+      playBuzz();
     } else {
       setBuzzState("lost");
+      playWrong();
       clearTimeout(lostTimer.current);
       lostTimer.current = setTimeout(() => {
         setBuzzState((prev) => (prev === "lost" ? "ready" : prev));

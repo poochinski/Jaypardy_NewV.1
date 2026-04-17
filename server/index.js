@@ -151,6 +151,7 @@ function freshState() {
     finalJaypardy: null,
     pickingDD:     false,
     ddPicked:      0,
+    gameLog:       [],
     buzz:          freshBuzz(),
   };
 }
@@ -588,8 +589,27 @@ io.on("connection", (socket) => {
 
     const isDD        = state.phase === "dailyDoubleClue";
     const scoreChange = isDD ? (state.wager?.amount ?? 0) : state.currentClue.value;
+    const snapshot    = JSON.parse(JSON.stringify(state));
+    const ts          = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    const clueQ       = state.currentClue.question;
+    const clueA       = state.currentClue.answer;
+    const cat         = state.currentClue.category;
+    const val         = state.currentClue.value;
+    const buzzer      = state.buzz.locked ? state.players.find((p) => p.id === state.buzz.playerId) : null;
+    const buzzerTeam  = buzzer ? state.teams.find((t) => t.id === state.buzz.teamId) : null;
+
+    let logEntry = null;
 
     if (result === "correct" && state.buzz.locked && state.buzz.teamId) {
+      logEntry = {
+        ts, result: "correct",
+        category: cat, value: val,
+        question: clueQ, answer: clueA,
+        player: buzzer?.name ?? "?",
+        team: buzzerTeam?.name ?? "?",
+        teamColor: buzzerTeam?.color ?? "#21c55d",
+        scoreDelta: `+$${scoreChange.toLocaleString()}`,
+      };
       state = {
         ...markClueUsed({
           ...state,
@@ -600,9 +620,19 @@ io.on("connection", (socket) => {
               : t
           ),
         }),
+        _undoSnapshot: snapshot,
+        gameLog: [...(state.gameLog ?? []), logEntry],
       };
     } else if (result === "wrong" && state.buzz.locked && state.buzz.teamId) {
-      // Deduct and unlock — for DD this ends the clue (only one chance)
+      logEntry = {
+        ts, result: "wrong",
+        category: cat, value: val,
+        question: clueQ, answer: clueA,
+        player: buzzer?.name ?? "?",
+        team: buzzerTeam?.name ?? "?",
+        teamColor: buzzerTeam?.color ?? "#ef4444",
+        scoreDelta: `-$${scoreChange.toLocaleString()}`,
+      };
       const deducted = {
         ...state,
         teams: state.teams.map((t) =>
@@ -611,15 +641,32 @@ io.on("connection", (socket) => {
             : t
         ),
         buzz: freshBuzz(),
+        gameLog: [...(state.gameLog ?? []), logEntry],
       };
-
-      // DD only gets one shot — close clue on wrong
-      state = isDD ? markClueUsed(deducted) : deducted;
+      state = isDD
+        ? { ...markClueUsed(deducted), _undoSnapshot: snapshot }
+        : { ...deducted, _undoSnapshot: snapshot };
     } else {
-      // skip or wrong with no buzz — mark used, back to board
-      state = markClueUsed(state);
+      logEntry = {
+        ts, result: "skip",
+        category: cat, value: val,
+        question: clueQ, answer: clueA,
+        player: null, team: null, teamColor: null, scoreDelta: null,
+      };
+      state = {
+        ...markClueUsed(state),
+        _undoSnapshot: snapshot,
+        gameLog: [...(state.gameLog ?? []), logEntry],
+      };
     }
 
+    emitState();
+  });
+
+  // Host undoes the last mark
+  socket.on("host:undo", () => {
+    if (!state._undoSnapshot) return;
+    state = { ...state._undoSnapshot, _undoSnapshot: null };
     emitState();
   });
 

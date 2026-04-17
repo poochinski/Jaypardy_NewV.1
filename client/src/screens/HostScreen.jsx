@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { socket } from "../socket";
 import "./jaypardyTheme.css";
 
@@ -20,26 +20,27 @@ export default function HostScreen({ state }) {
   const [finalCategory,    setFinalCategory]    = useState(ALL_CATEGORIES[0]);
   const [finalSearch,      setFinalSearch]      = useState("");
   const [swapSearch,       setSwapSearch]       = useState("");
+  const [showHistory,      setShowHistory]      = useState(false);
 
   // ─── Theme state ──────────────────────────────────────────────────────────
   const [showSaveTheme,  setShowSaveTheme]  = useState(false);
   const [showLoadTheme,  setShowLoadTheme]  = useState(false);
   const [themeName,      setThemeName]      = useState("");
   const [themeSearch,    setThemeSearch]    = useState("");
-  const [savedThemes,    setSavedThemes]    = useState(() => {
-    try { return JSON.parse(localStorage.getItem("jaypardy_themes") || "{}"); }
-    catch { return {}; }
-  });
+  const [savedThemes,    setSavedThemes]    = useState({});
 
-  const persistThemes = (updated) => {
-    setSavedThemes(updated);
-    localStorage.setItem("jaypardy_themes", JSON.stringify(updated));
-  };
+  // Listen for themes from server
+  useEffect(() => {
+    const onThemes = (themes) => setSavedThemes(themes);
+    socket.on("themes:update", onThemes);
+    socket.emit("host:getThemes");
+    return () => socket.off("themes:update", onThemes);
+  }, []);
 
   const saveTheme = () => {
     if (!themeName.trim() || !board) return;
     const cats = board.columns.map((c) => c.title);
-    persistThemes({ ...savedThemes, [themeName.trim()]: cats });
+    socket.emit("host:saveTheme", { name: themeName.trim(), categories: cats });
     setThemeName("");
     setShowSaveTheme(false);
   };
@@ -53,9 +54,7 @@ export default function HostScreen({ state }) {
   };
 
   const deleteTheme = (name) => {
-    const updated = { ...savedThemes };
-    delete updated[name];
-    persistThemes(updated);
+    socket.emit("host:deleteTheme", { name });
   };
 
   const players      = state?.players ?? [];
@@ -124,6 +123,9 @@ export default function HostScreen({ state }) {
   const ddPicked   = state?.ddPicked ?? 0;
   const ddNeeded   = board?.round === 2 ? 2 : 1;
   const canPickDD  = phase === "board" && !!board;
+
+  // Game log
+  const gameLog = state?.gameLog ?? [];
 
   // Count submitted wagers
   const wagerCount = finalJaypardy
@@ -603,6 +605,25 @@ export default function HostScreen({ state }) {
             </button>
           </div>
 
+          {/* Undo last action */}
+          <button
+            onClick={() => socket.emit("host:undo")}
+            style={{
+              padding:      "8px",
+              borderRadius: 8,
+              border:       "1px solid rgba(255,180,50,0.25)",
+              background:   "rgba(255,180,50,0.07)",
+              color:        "rgba(255,180,50,0.6)",
+              fontSize:     11,
+              fontWeight:   700,
+              cursor:       "pointer",
+              flexShrink:   0,
+              width:        "100%",
+            }}
+          >
+            ↩ Undo Last Action
+          </button>
+
         </div>
       );
     }
@@ -946,6 +967,15 @@ export default function HostScreen({ state }) {
                 Load Theme
               </button>
 
+              {/* Game History */}
+              <button
+                className="jp-btn"
+                style={{ gridColumn:"span 2", background:"rgba(160,120,255,0.10)", borderColor:"rgba(160,120,255,0.3)", color:"#c4b5fd" }}
+                onClick={() => setShowHistory(true)}
+              >
+                Game History
+              </button>
+
               {confirmReset ? (
                 <button
                   className="jp-btn jp-btnBad"
@@ -1065,6 +1095,73 @@ export default function HostScreen({ state }) {
 
         </aside>
       </div>
+
+      {/* Game History modal */}
+      {showHistory && (
+        <div style={{ position:"fixed", inset:0, zIndex:999, background:"rgba(0,0,0,0.75)", display:"flex", alignItems:"center", justifyContent:"center", padding:24 }}>
+          <div style={{ background:"#090f3a", border:"1px solid rgba(255,255,255,0.15)", borderRadius:20, padding:24, width:"100%", maxWidth:560, maxHeight:"80vh", display:"flex", flexDirection:"column" }}>
+            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:16 }}>
+              <div style={{ fontSize:20, fontWeight:900, color:"#c4b5fd" }}>Game History</div>
+              <button className="jp-btn" style={{ fontSize:12, padding:"4px 12px" }} onClick={() => setShowHistory(false)}>Close</button>
+            </div>
+
+            <div style={{ flex:1, overflowY:"auto", display:"flex", flexDirection:"column", gap:6 }}>
+              {gameLog.length === 0 ? (
+                <div style={{ textAlign:"center", color:"rgba(246,247,255,0.35)", fontSize:14, padding:24 }}>
+                  No events yet — history starts when clues are marked.
+                </div>
+              ) : (
+                [...gameLog].reverse().map((entry, i) => (
+                  <div key={i} style={{
+                    padding:"10px 14px", borderRadius:10,
+                    background: entry.result === "correct"
+                      ? `${entry.teamColor}18`
+                      : entry.result === "wrong"
+                      ? "rgba(239,68,68,0.10)"
+                      : "rgba(255,255,255,0.04)",
+                    border: `1px solid ${
+                      entry.result === "correct" ? entry.teamColor + "44"
+                      : entry.result === "wrong" ? "rgba(239,68,68,0.25)"
+                      : "rgba(255,255,255,0.07)"}`,
+                  }}>
+                    <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:4 }}>
+                      <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                        <span style={{
+                          fontSize:11, fontWeight:900, padding:"2px 7px", borderRadius:999,
+                          background: entry.result === "correct" ? "#21c55d33"
+                            : entry.result === "wrong" ? "#ef444433" : "rgba(255,255,255,0.08)",
+                          color: entry.result === "correct" ? "#21c55d"
+                            : entry.result === "wrong" ? "#fca5a5" : "rgba(246,247,255,0.5)",
+                        }}>
+                          {entry.result.toUpperCase()}
+                        </span>
+                        <span style={{ fontSize:12, fontWeight:700, color:"rgba(246,247,255,0.5)" }}>
+                          {entry.category} — ${entry.value}
+                        </span>
+                      </div>
+                      <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                        {entry.scoreDelta && (
+                          <span style={{ fontSize:13, fontWeight:900, color: entry.result === "correct" ? "#21c55d" : "#fca5a5" }}>
+                            {entry.scoreDelta}
+                          </span>
+                        )}
+                        <span style={{ fontSize:11, color:"rgba(246,247,255,0.3)" }}>{entry.ts}</span>
+                      </div>
+                    </div>
+                    <div style={{ fontSize:13, color:"#f6f7ff", marginBottom:2 }}>{entry.question}</div>
+                    <div style={{ fontSize:12, color:"#ffdd75", fontStyle:"italic" }}>{entry.answer}</div>
+                    {entry.player && (
+                      <div style={{ fontSize:11, color: entry.teamColor ?? "rgba(246,247,255,0.45)", marginTop:4, fontWeight:700 }}>
+                        {entry.player} — {entry.team}
+                      </div>
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Save Theme modal */}
       {showSaveTheme && (
