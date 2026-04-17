@@ -605,25 +605,6 @@ export default function HostScreen({ state }) {
             </button>
           </div>
 
-          {/* Undo last action */}
-          <button
-            onClick={() => socket.emit("host:undo")}
-            style={{
-              padding:      "8px",
-              borderRadius: 8,
-              border:       "1px solid rgba(255,180,50,0.25)",
-              background:   "rgba(255,180,50,0.07)",
-              color:        "rgba(255,180,50,0.6)",
-              fontSize:     11,
-              fontWeight:   700,
-              cursor:       "pointer",
-              flexShrink:   0,
-              width:        "100%",
-            }}
-          >
-            ↩ Undo Last Action
-          </button>
-
         </div>
       );
     }

@@ -589,7 +589,6 @@ io.on("connection", (socket) => {
 
     const isDD        = state.phase === "dailyDoubleClue";
     const scoreChange = isDD ? (state.wager?.amount ?? 0) : state.currentClue.value;
-    const snapshot    = JSON.parse(JSON.stringify(state));
     const ts          = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
     const clueQ       = state.currentClue.question;
     const clueA       = state.currentClue.answer;
@@ -620,7 +619,6 @@ io.on("connection", (socket) => {
               : t
           ),
         }),
-        _undoSnapshot: snapshot,
         gameLog: [...(state.gameLog ?? []), logEntry],
       };
     } else if (result === "wrong" && state.buzz.locked && state.buzz.teamId) {
@@ -643,9 +641,7 @@ io.on("connection", (socket) => {
         buzz: freshBuzz(),
         gameLog: [...(state.gameLog ?? []), logEntry],
       };
-      state = isDD
-        ? { ...markClueUsed(deducted), _undoSnapshot: snapshot }
-        : { ...deducted, _undoSnapshot: snapshot };
+      state = isDD ? markClueUsed(deducted) : deducted;
     } else {
       logEntry = {
         ts, result: "skip",
@@ -655,18 +651,10 @@ io.on("connection", (socket) => {
       };
       state = {
         ...markClueUsed(state),
-        _undoSnapshot: snapshot,
         gameLog: [...(state.gameLog ?? []), logEntry],
       };
     }
 
-    emitState();
-  });
-
-  // Host undoes the last mark
-  socket.on("host:undo", () => {
-    if (!state._undoSnapshot) return;
-    state = { ...state._undoSnapshot, _undoSnapshot: null };
     emitState();
   });
 

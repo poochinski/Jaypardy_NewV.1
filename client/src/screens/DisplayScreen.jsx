@@ -77,7 +77,7 @@ export default function DisplayScreen({ state }) {
       clearTimeout(revealTimer.current);
       revealTimer.current = setTimeout(() => setRevealAnswer(null), 2500);
       // Correct sound
-      if (soundEnabled && !mutedRef.current) playCorrect();
+      if (!mutedRef.current) playCorrect();
     }
 
     // Skip — clue closed with no buzz
@@ -86,7 +86,7 @@ export default function DisplayScreen({ state }) {
       phase === "board" &&
       !prevBuzz?.locked
     ) {
-      if (soundEnabled && !mutedRef.current) playSkip();
+      // skip is intentionally silent
     }
 
     prevPhaseRef.current = phase;
@@ -95,8 +95,8 @@ export default function DisplayScreen({ state }) {
 
   // Detect buzz in
   useEffect(() => {
-    if (buzz?.locked && buzz?.playerId && soundEnabled && !mutedRef.current) {
-      playBuzz();
+    if (buzz?.locked && buzz?.playerId) {
+      if (!mutedRef.current) playBuzz();
     }
   }, [buzz?.locked, buzz?.playerId]);
 
@@ -117,8 +117,7 @@ export default function DisplayScreen({ state }) {
       });
       clearTimeout(wrongTimer.current);
       wrongTimer.current = setTimeout(() => setWrongFlash(null), 1500);
-      // Wrong sound
-      if (soundEnabled && !mutedRef.current) playWrong();
+      if (!mutedRef.current) playWrong();
     }
   }, [buzz?.locked]);
 
