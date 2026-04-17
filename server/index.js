@@ -1,21 +1,54 @@
 const express = require("express");
-const http = require("http");
-const cors = require("cors");
-const path = require("path");
+const http    = require("http");
+const cors    = require("cors");
+const path    = require("path");
 const { Server } = require("socket.io");
+const { Pool }   = require("pg");
 const { QUESTION_BANK } = require("./data/questions");
 
 const app = express();
 app.use(cors());
 
 const server = http.createServer(app);
+const io = new Server(server, { cors: { origin: "*" } });
 
-const io = new Server(server, {
-  cors: {
-    origin: true,
-    methods: ["GET", "POST"],
-  },
+// ─── Postgres ─────────────────────────────────────────────────────────────────
+
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: { rejectUnauthorized: false },
 });
+
+async function initDb() {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS themes (
+      name        TEXT PRIMARY KEY,
+      categories  TEXT[] NOT NULL,
+      created_at  TIMESTAMPTZ DEFAULT NOW()
+    )
+  `);
+  console.log("[db] themes table ready");
+}
+
+async function getAllThemes() {
+  const { rows } = await pool.query("SELECT name, categories FROM themes ORDER BY created_at ASC");
+  const out = {};
+  rows.forEach((r) => { out[r.name] = r.categories; });
+  return out;
+}
+
+async function upsertTheme(name, categories) {
+  await pool.query(
+    `INSERT INTO themes (name, categories)
+     VALUES ($1, $2)
+     ON CONFLICT (name) DO UPDATE SET categories = $2`,
+    [name, categories]
+  );
+}
+
+async function removeTheme(name) {
+  await pool.query("DELETE FROM themes WHERE name = $1", [name]);
+}
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -160,13 +193,44 @@ function emitState() {
 
 io.on("connection", (socket) => {
   console.log(`[+] ${socket.id}`);
-
-  // Send current state immediately
   socket.emit("state:update", state);
 
-  // Backup: client can request the latest state
-  socket.on("client:requestState", () => {
-    socket.emit("state:update", state);
+  // Send themes on connect
+  getAllThemes().then((themes) => socket.emit("themes:update", themes)).catch(() => {});
+
+  // Host requests themes
+  socket.on("host:getThemes", async () => {
+    try {
+      const themes = await getAllThemes();
+      socket.emit("themes:update", themes);
+    } catch (e) {
+      console.error("[themes] getThemes error:", e.message);
+    }
+  });
+
+  // Host saves a theme
+  socket.on("host:saveTheme", async ({ name, categories }) => {
+    if (!name || !Array.isArray(categories) || categories.length !== 6) return;
+    const safeName = name.trim().slice(0, 50);
+    if (!safeName) return;
+    try {
+      await upsertTheme(safeName, categories);
+      const themes = await getAllThemes();
+      socket.emit("themes:update", themes);
+    } catch (e) {
+      console.error("[themes] saveTheme error:", e.message);
+    }
+  });
+
+  // Host deletes a theme
+  socket.on("host:deleteTheme", async ({ name }) => {
+    try {
+      await removeTheme(name);
+      const themes = await getAllThemes();
+      socket.emit("themes:update", themes);
+    } catch (e) {
+      console.error("[themes] deleteTheme error:", e.message);
+    }
   });
 
   // Player joins
@@ -177,8 +241,8 @@ io.on("connection", (socket) => {
     if (!safeName) return;
 
     const safeEmoji = VALID_EMOJIS.has(emoji) ? emoji : "😀";
-    const existing = state.players.find((p) => p.id === socket.id);
-    const teamId = existing?.teamId ?? null;
+    const existing  = state.players.find((p) => p.id === socket.id);
+    const teamId    = existing?.teamId ?? null;
 
     state = {
       ...state,
@@ -190,8 +254,6 @@ io.on("connection", (socket) => {
 
     emitState();
   });
-
-  // ...keep
 
   // Host assigns team
   socket.on("host:assignTeam", ({ playerId, teamId }) => {
@@ -681,6 +743,59 @@ io.on("connection", (socket) => {
     emitState();
   });
 
+  // Host loads a saved theme — rebuilds board with specific categories
+  socket.on("host:loadTheme", ({ categories }) => {
+    if (!Array.isArray(categories) || categories.length !== 6) return;
+
+    const round  = state.board?.round ?? 1;
+    const values = round === 2 ? ROUND2_VALUES : ROUND1_VALUES;
+    const ddCount = round === 2 ? 2 : 1;
+
+    const columns = categories.map((catName, colIndex) => {
+      const cat = QUESTION_BANK.find((c) => c.category === catName);
+      if (!cat) {
+        // Category not found — pick a random one as fallback
+        const fallback = QUESTION_BANK[colIndex % QUESTION_BANK.length];
+        const chosen = pickRandom(fallback.clues, 5);
+        return {
+          id: `c${colIndex}`, title: fallback.category,
+          clues: chosen.map((cl, ri) => ({ id:`c${colIndex}r${ri}`, value:values[ri], question:cl.q, answer:cl.a, used:false, isDD:false })),
+        };
+      }
+      const chosen = pickRandom(cat.clues, 5);
+      return {
+        id:    `c${colIndex}`,
+        title: cat.category,
+        clues: chosen.map((cl, rowIndex) => ({
+          id:`c${colIndex}r${rowIndex}`, value:values[rowIndex],
+          question:cl.q, answer:cl.a, used:false, isDD:false,
+        })),
+      };
+    });
+
+    // Place daily doubles
+    const ddPlaced = new Set();
+    let attempts = 0;
+    while (ddPlaced.size < ddCount && attempts < 50) {
+      attempts++;
+      const col = Math.floor(Math.random() * 6);
+      const row = 1 + Math.floor(Math.random() * 4);
+      const key = `${col}-${row}`;
+      if (!ddPlaced.has(key)) { columns[col].clues[row].isDD = true; ddPlaced.add(key); }
+    }
+
+    state = {
+      ...state,
+      board:       { round, columns },
+      phase:       "board",
+      currentClue: null,
+      wager:       null,
+      buzz:        freshBuzz(),
+    };
+
+    emitState();
+  });
+
   // Host fully resets
   socket.on("host:resetGame", () => {
     state = freshState();
@@ -716,6 +831,17 @@ app.get("/{*path}", (req, res) => {
 // ─── Start ────────────────────────────────────────────────────────────────────
 
 const PORT = process.env.PORT || 5000;
-server.listen(PORT, () =>
-  console.log(`Jaypardy server running on http://localhost:${PORT}`)
-);
+
+initDb()
+  .then(() => {
+    server.listen(PORT, () =>
+      console.log(`Jaypardy server running on http://localhost:${PORT}`)
+    );
+  })
+  .catch((err) => {
+    console.error("[db] Failed to initialize database:", err.message);
+    // Start anyway so the game still works even if themes DB fails
+    server.listen(PORT, () =>
+      console.log(`Jaypardy server running on http://localhost:${PORT} (no db)`)
+    );
+  });

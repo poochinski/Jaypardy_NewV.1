@@ -21,6 +21,43 @@ export default function HostScreen({ state }) {
   const [finalSearch,      setFinalSearch]      = useState("");
   const [swapSearch,       setSwapSearch]       = useState("");
 
+  // ─── Theme state ──────────────────────────────────────────────────────────
+  const [showSaveTheme,  setShowSaveTheme]  = useState(false);
+  const [showLoadTheme,  setShowLoadTheme]  = useState(false);
+  const [themeName,      setThemeName]      = useState("");
+  const [themeSearch,    setThemeSearch]    = useState("");
+  const [savedThemes,    setSavedThemes]    = useState(() => {
+    try { return JSON.parse(localStorage.getItem("jaypardy_themes") || "{}"); }
+    catch { return {}; }
+  });
+
+  const persistThemes = (updated) => {
+    setSavedThemes(updated);
+    localStorage.setItem("jaypardy_themes", JSON.stringify(updated));
+  };
+
+  const saveTheme = () => {
+    if (!themeName.trim() || !board) return;
+    const cats = board.columns.map((c) => c.title);
+    persistThemes({ ...savedThemes, [themeName.trim()]: cats });
+    setThemeName("");
+    setShowSaveTheme(false);
+  };
+
+  const loadTheme = (name) => {
+    const cats = savedThemes[name];
+    if (!cats) return;
+    socket.emit("host:loadTheme", { categories: cats });
+    setShowLoadTheme(false);
+    setThemeSearch("");
+  };
+
+  const deleteTheme = (name) => {
+    const updated = { ...savedThemes };
+    delete updated[name];
+    persistThemes(updated);
+  };
+
   const players      = state?.players ?? [];
   const teams        = state?.teams ?? [];
   const buzz         = state?.buzz ?? { locked: false };
@@ -892,6 +929,23 @@ export default function HostScreen({ state }) {
                 </button>
               )}
 
+              {/* Save / Load Theme */}
+              <button
+                className="jp-btn"
+                disabled={!board || phase !== "board"}
+                onClick={() => { setThemeName(""); setShowSaveTheme(true); }}
+                style={{ background:"rgba(99,179,237,0.12)", borderColor:"rgba(99,179,237,0.35)", color:"#90cdf4" }}
+              >
+                Save Theme
+              </button>
+              <button
+                className="jp-btn"
+                onClick={() => { setThemeSearch(""); setShowLoadTheme(true); }}
+                style={{ background:"rgba(99,179,237,0.12)", borderColor:"rgba(99,179,237,0.35)", color:"#90cdf4" }}
+              >
+                Load Theme
+              </button>
+
               {confirmReset ? (
                 <button
                   className="jp-btn jp-btnBad"
@@ -1012,7 +1066,110 @@ export default function HostScreen({ state }) {
         </aside>
       </div>
 
-      {/* Category swap — searchable modal */}
+      {/* Save Theme modal */}
+      {showSaveTheme && (
+        <div style={{ position:"fixed", inset:0, zIndex:999, background:"rgba(0,0,0,0.75)", display:"flex", alignItems:"center", justifyContent:"center", padding:24 }}>
+          <div style={{ background:"#090f3a", border:"1px solid rgba(255,255,255,0.15)", borderRadius:20, padding:24, width:"100%", maxWidth:400 }}>
+            <div style={{ fontSize:20, fontWeight:900, color:"#90cdf4", marginBottom:6, textAlign:"center" }}>Save Theme</div>
+            <div style={{ fontSize:12, color:"rgba(246,247,255,0.45)", textAlign:"center", marginBottom:16 }}>
+              Saving: {board?.columns.map((c) => c.title).join(", ")}
+            </div>
+            <input
+              autoFocus
+              value={themeName}
+              onChange={(e) => setThemeName(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && saveTheme()}
+              placeholder="e.g. TV Theme Night"
+              maxLength={40}
+              style={{
+                width:"100%", padding:"12px 14px", fontSize:15, borderRadius:10,
+                border:"1px solid rgba(255,255,255,0.2)", background:"rgba(255,255,255,0.08)",
+                color:"#f6f7ff", outline:"none", marginBottom:14, boxSizing:"border-box",
+              }}
+            />
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
+              <button className="jp-btn" onClick={() => setShowSaveTheme(false)}>Cancel</button>
+              <button
+                className="jp-btn"
+                disabled={!themeName.trim()}
+                style={{ background:"rgba(99,179,237,0.2)", borderColor:"rgba(99,179,237,0.5)", color:"#90cdf4", fontWeight:900 }}
+                onClick={saveTheme}
+              >
+                Save
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Load Theme modal */}
+      {showLoadTheme && (
+        <div style={{ position:"fixed", inset:0, zIndex:999, background:"rgba(0,0,0,0.75)", display:"flex", alignItems:"center", justifyContent:"center", padding:24 }}>
+          <div style={{ background:"#090f3a", border:"1px solid rgba(255,255,255,0.15)", borderRadius:20, padding:24, width:"100%", maxWidth:420 }}>
+            <div style={{ fontSize:20, fontWeight:900, color:"#90cdf4", marginBottom:16, textAlign:"center" }}>Load Theme</div>
+
+            <input
+              autoFocus
+              value={themeSearch}
+              onChange={(e) => setThemeSearch(e.target.value)}
+              placeholder="Search themes…"
+              style={{
+                width:"100%", padding:"11px 14px", fontSize:14, borderRadius:10,
+                border:"1px solid rgba(255,255,255,0.2)", background:"rgba(255,255,255,0.08)",
+                color:"#f6f7ff", outline:"none", marginBottom:10, boxSizing:"border-box",
+              }}
+            />
+
+            <div style={{ height:260, overflowY:"auto", border:"1px solid rgba(255,255,255,0.10)", borderRadius:10, background:"rgba(0,0,0,0.2)", marginBottom:14 }}>
+              {Object.keys(savedThemes).length === 0 ? (
+                <div style={{ padding:20, textAlign:"center", color:"rgba(246,247,255,0.4)", fontSize:13 }}>
+                  No saved themes yet. Arrange your board and click Save Theme.
+                </div>
+              ) : (
+                Object.keys(savedThemes)
+                  .filter((name) => name.toLowerCase().includes(themeSearch.toLowerCase()))
+                  .map((name) => (
+                    <div key={name} style={{
+                      display:"flex", alignItems:"center", gap:10,
+                      padding:"10px 14px", borderBottom:"1px solid rgba(255,255,255,0.05)",
+                    }}>
+                      <div style={{ flex:1 }}>
+                        <div style={{ fontWeight:900, fontSize:14, color:"#f6f7ff", marginBottom:3 }}>{name}</div>
+                        <div style={{ fontSize:11, color:"rgba(246,247,255,0.4)", lineHeight:1.4 }}>
+                          {savedThemes[name].join(" · ")}
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => loadTheme(name)}
+                        style={{
+                          padding:"6px 14px", borderRadius:8, border:"1px solid rgba(99,179,237,0.4)",
+                          background:"rgba(99,179,237,0.15)", color:"#90cdf4", fontWeight:900,
+                          fontSize:12, cursor:"pointer", flexShrink:0,
+                        }}
+                      >
+                        Load
+                      </button>
+                      <button
+                        onClick={() => deleteTheme(name)}
+                        style={{
+                          padding:"6px 10px", borderRadius:8, border:"1px solid rgba(239,68,68,0.3)",
+                          background:"rgba(239,68,68,0.10)", color:"#fca5a5", fontWeight:900,
+                          fontSize:12, cursor:"pointer", flexShrink:0,
+                        }}
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  ))
+              )}
+            </div>
+
+            <button className="jp-btn" style={{ width:"100%" }} onClick={() => { setShowLoadTheme(false); setThemeSearch(""); }}>
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
       {swapMenu && (
         <div style={{
           position:"fixed", inset:0, zIndex:9999,
