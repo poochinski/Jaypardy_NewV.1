@@ -20,6 +20,7 @@ const pool = new Pool({
 });
 
 async function initDb() {
+  // Themes table
   await pool.query(`
     CREATE TABLE IF NOT EXISTS themes (
       name        TEXT PRIMARY KEY,
@@ -27,7 +28,55 @@ async function initDb() {
       created_at  TIMESTAMPTZ DEFAULT NOW()
     )
   `);
-  console.log("[db] themes table ready");
+
+  // Categories table — clues stored as JSONB array of {q, a, d?}
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS categories (
+      name        TEXT PRIMARY KEY,
+      clues       JSONB NOT NULL DEFAULT '[]',
+      created_at  TIMESTAMPTZ DEFAULT NOW()
+    )
+  `);
+
+  // Seed built-in categories from questions.js — only INSERT, never overwrite
+  // This means existing edits in Postgres are always preserved
+  let seeded = 0;
+  for (const cat of QUESTION_BANK) {
+    const result = await pool.query(
+      `INSERT INTO categories (name, clues)
+       VALUES ($1, $2)
+       ON CONFLICT (name) DO NOTHING`,
+      [cat.category, JSON.stringify(cat.clues)]
+    );
+    if (result.rowCount > 0) seeded++;
+  }
+  if (seeded > 0) console.log(`[db] seeded ${seeded} new categories from questions.js`);
+
+  console.log("[db] tables ready");
+}
+
+// ─── Category DB helpers ──────────────────────────────────────────────────────
+
+async function getAllCategories() {
+  const { rows } = await pool.query("SELECT name, clues FROM categories ORDER BY name ASC");
+  return rows.map((r) => ({ category: r.name, clues: r.clues }));
+}
+
+async function getCategoryClues(name) {
+  const { rows } = await pool.query("SELECT clues FROM categories WHERE name = $1", [name]);
+  return rows[0]?.clues ?? null;
+}
+
+async function upsertCategory(name, clues) {
+  await pool.query(
+    `INSERT INTO categories (name, clues) VALUES ($1, $2)
+     ON CONFLICT (name) DO UPDATE SET clues = $2`,
+    [name, JSON.stringify(clues)]
+  );
+}
+
+async function deleteCategory(name) {
+  await pool.query("DELETE FROM categories WHERE name = $1", [name]);
 }
 
 async function getAllThemes() {
@@ -84,19 +133,84 @@ function pickRandom(arr, n) {
   return out;
 }
 
-function buildBoard(round = 1) {
+// Pick clues for a single row using difficulty tiers
+// Row 0-1 = easy tier, row 2-3 = medium tier, row 4 = hard tier
+// Untagged clues (no d field) are wildcards that fill any slot
+function pickClueForRow(clues, rowIndex, usedIds) {
+  const tierMap = {
+    0: ["easy"],
+    1: ["easy"],
+    2: ["medium"],
+    3: ["medium"],
+    4: ["hard"],
+  };
+  const preferred = tierMap[rowIndex] ?? ["medium"];
+
+  const available = clues.filter((_, i) => !usedIds.has(i));
+  const preferred_pool = available.filter(
+    (cl, i) => preferred.includes(cl.d) && !usedIds.has(clues.indexOf(cl))
+  );
+  const untagged_pool  = available.filter((cl) => !cl.d);
+  const any_pool       = available;
+
+  // Try preferred tier first, then untagged, then anything
+  const pool = preferred_pool.length > 0
+    ? preferred_pool
+    : untagged_pool.length > 0
+    ? untagged_pool
+    : any_pool;
+
+  if (pool.length === 0) return null;
+  return pool[Math.floor(Math.random() * pool.length)];
+}
+
+function pickFiveClues(clues) {
+  // If no clues have difficulty tags, just pick 5 randomly (fast path)
+  const hasAnyTags = clues.some((cl) => cl.d);
+  if (!hasAnyTags) return pickRandom(clues, 5);
+
+  const used = new Set();
+  const chosen = [];
+
+  for (let row = 0; row < 5; row++) {
+    // Build a set of actual indices for tracking
+    const usedIndices = new Set(chosen.map((cl) => clues.indexOf(cl)));
+    const cl = pickClueForRow(clues, row, usedIndices);
+    if (cl) {
+      chosen.push(cl);
+    } else {
+      // Fallback — pick any unused clue
+      const remaining = clues.filter((c) => !chosen.includes(c));
+      if (remaining.length > 0) {
+        chosen.push(remaining[Math.floor(Math.random() * remaining.length)]);
+      }
+    }
+  }
+
+  return chosen;
+}
+
+// In-memory category cache — refreshed from DB on demand
+let categoryCache = [];
+
+async function refreshCategoryCache() {
+  categoryCache = await getAllCategories();
+  console.log(`[db] category cache refreshed: ${categoryCache.length} categories`);
+}
+
+async function buildBoard(round = 1) {
   const values  = round === 2 ? ROUND2_VALUES : ROUND1_VALUES;
   const ddCount = round === 2 ? 2 : 1;
 
-  if (QUESTION_BANK.length < 6) {
-    console.error(`[board] Not enough categories (need 6, have ${QUESTION_BANK.length})`);
+  if (categoryCache.length < 6) {
+    console.error(`[board] Not enough categories (need 6, have ${categoryCache.length})`);
     return null;
   }
 
-  const cats = pickRandom(QUESTION_BANK, 6);
+  const cats = pickRandom(categoryCache, 6);
 
   const columns = cats.map((c, colIndex) => {
-    const chosen = pickRandom(c.clues, 5);
+    const chosen = pickFiveClues(c.clues);
     return {
       id: `c${colIndex}`,
       title: c.category,
@@ -272,10 +386,10 @@ io.on("connection", (socket) => {
   });
 
   // Host starts game — lobby only
-  socket.on("host:startJaypardy", () => {
+  socket.on("host:startJaypardy", async () => {
     if (state.phase !== "lobby") return;
 
-    const board = buildBoard(1);
+    const board = await buildBoard(1);
     if (!board) return;
 
     state = {
@@ -294,11 +408,9 @@ io.on("connection", (socket) => {
     if (!state.board) return;
     if (colIndex < 0 || colIndex >= state.board.columns.length) return;
 
-    // Find the requested category in the bank
-    const cat = QUESTION_BANK.find((c) => c.category === newCategory);
+    const cat = categoryCache.find((c) => c.category === newCategory);
     if (!cat) return;
 
-    // Make sure it's not already on the board
     const alreadyOnBoard = state.board.columns.some(
       (col, ci) => ci !== colIndex && col.title === newCategory
     );
@@ -319,8 +431,6 @@ io.on("connection", (socket) => {
       })),
     };
 
-    // Re-place a DD in this column if needed
-    // Only add DD if the original column had one
     const originalCol = state.board.columns[colIndex];
     if (originalCol.clues.some((c) => c.isDD)) {
       const ddRow = 1 + Math.floor(Math.random() * 4);
@@ -341,7 +451,7 @@ io.on("connection", (socket) => {
   });
 
   // Host starts round 2
-  socket.on("host:startRound2", () => {
+  socket.on("host:startRound2", async () => {
     if (state.phase !== "board") return;
     if (state.board?.round !== 1) return;
 
@@ -350,7 +460,7 @@ io.on("connection", (socket) => {
     );
     if (!allUsed) return;
 
-    const newBoard = buildBoard(2);
+    const newBoard = await buildBoard(2);
     if (!newBoard) return;
 
     state = {
@@ -366,12 +476,12 @@ io.on("connection", (socket) => {
   });
 
   // Host skips the current round and jumps to the next
-  socket.on("host:skipRound", () => {
+  socket.on("host:skipRound", async () => {
     if (!state.board) return;
     if (state.phase !== "board" && state.phase !== "clue") return;
 
     if (state.board.round === 1) {
-      const newBoard = buildBoard(2);
+      const newBoard = await buildBoard(2);
       if (!newBoard) return;
       state = {
         ...state,
@@ -382,7 +492,6 @@ io.on("connection", (socket) => {
         buzz:        freshBuzz(),
       };
     } else {
-      // Round 2 — skip to Final Jaypardy setup (just go to board phase, host triggers final manually)
       state = {
         ...state,
         phase:       "board",
@@ -468,9 +577,9 @@ io.on("connection", (socket) => {
   });
 
   // Host generates a new board without resetting scores
-  socket.on("host:newBoard", () => {
+  socket.on("host:newBoard", async () => {
     const round = state.board?.round ?? 1;
-    const board = buildBoard(round);
+    const board = await buildBoard(round);
     if (!board) return;
 
     state = {
@@ -677,7 +786,7 @@ io.on("connection", (socket) => {
 
   socket.on("host:startFinal", ({ category }) => {
     if (state.phase !== "board") return;
-    const cat = QUESTION_BANK.find((c) => c.category === category);
+    const cat = categoryCache.find((c) => c.category === category);
     if (!cat) return;
     const clue = pickRandom(cat.clues, 1)[0];
     const eligiblePlayers = state.players.filter((p) => p.teamId);
@@ -789,10 +898,9 @@ io.on("connection", (socket) => {
     const ddCount = round === 2 ? 2 : 1;
 
     const columns = categories.map((catName, colIndex) => {
-      const cat = QUESTION_BANK.find((c) => c.category === catName);
+      const cat = categoryCache.find((c) => c.category === catName);
       if (!cat) {
-        // Category not found — pick a random one as fallback
-        const fallback = QUESTION_BANK[colIndex % QUESTION_BANK.length];
+        const fallback = categoryCache[colIndex % categoryCache.length];
         const chosen = pickRandom(fallback.clues, 5);
         return {
           id: `c${colIndex}`, title: fallback.category,
@@ -833,6 +941,46 @@ io.on("connection", (socket) => {
     emitState();
   });
 
+  // ─── Clue Editor API ─────────────────────────────────────────────────────
+
+  // Get all categories with clues
+  socket.on("editor:getAll", async () => {
+    try {
+      const cats = await getAllCategories();
+      socket.emit("editor:data", cats);
+    } catch (e) {
+      console.error("[editor] getAll error:", e.message);
+    }
+  });
+
+  // Save a category (create or update)
+  socket.on("editor:saveCategory", async ({ name, clues }) => {
+    if (!name?.trim() || !Array.isArray(clues)) return;
+    try {
+      await upsertCategory(name.trim(), clues);
+      await refreshCategoryCache();
+      const cats = await getAllCategories();
+      socket.emit("editor:data", cats);
+      // Also update category list for host screens
+      io.emit("categories:update", categoryCache.map((c) => c.category));
+    } catch (e) {
+      console.error("[editor] saveCategory error:", e.message);
+    }
+  });
+
+  // Delete a category
+  socket.on("editor:deleteCategory", async ({ name }) => {
+    try {
+      await deleteCategory(name);
+      await refreshCategoryCache();
+      const cats = await getAllCategories();
+      socket.emit("editor:data", cats);
+      io.emit("categories:update", categoryCache.map((c) => c.category));
+    } catch (e) {
+      console.error("[editor] deleteCategory error:", e.message);
+    }
+  });
+
   // Host fully resets
   socket.on("host:resetGame", () => {
     state = freshState();
@@ -870,6 +1018,7 @@ app.get("/{*path}", (req, res) => {
 const PORT = process.env.PORT || 5000;
 
 initDb()
+  .then(() => refreshCategoryCache())
   .then(() => {
     server.listen(PORT, () =>
       console.log(`Jaypardy server running on http://localhost:${PORT}`)
@@ -877,7 +1026,6 @@ initDb()
   })
   .catch((err) => {
     console.error("[db] Failed to initialize database:", err.message);
-    // Start anyway so the game still works even if themes DB fails
     server.listen(PORT, () =>
       console.log(`Jaypardy server running on http://localhost:${PORT} (no db)`)
     );
