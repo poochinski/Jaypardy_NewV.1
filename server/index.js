@@ -9,7 +9,13 @@ const app = express();
 app.use(cors());
 
 const server = http.createServer(app);
-const io = new Server(server, { cors: { origin: "*" } });
+
+const io = new Server(server, {
+  cors: {
+    origin: true,
+    methods: ["GET", "POST"],
+  },
+});
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -154,7 +160,14 @@ function emitState() {
 
 io.on("connection", (socket) => {
   console.log(`[+] ${socket.id}`);
+
+  // Send current state immediately
   socket.emit("state:update", state);
+
+  // Backup: client can request the latest state
+  socket.on("client:requestState", () => {
+    socket.emit("state:update", state);
+  });
 
   // Player joins
   socket.on("player:join", ({ name, emoji }) => {
@@ -164,8 +177,8 @@ io.on("connection", (socket) => {
     if (!safeName) return;
 
     const safeEmoji = VALID_EMOJIS.has(emoji) ? emoji : "😀";
-    const existing  = state.players.find((p) => p.id === socket.id);
-    const teamId    = existing?.teamId ?? null;
+    const existing = state.players.find((p) => p.id === socket.id);
+    const teamId = existing?.teamId ?? null;
 
     state = {
       ...state,
@@ -177,6 +190,8 @@ io.on("connection", (socket) => {
 
     emitState();
   });
+
+  // ...keep
 
   // Host assigns team
   socket.on("host:assignTeam", ({ playerId, teamId }) => {
