@@ -26,7 +26,7 @@ function LandingScreen() {
       fontFamily: "ui-sans-serif, system-ui, sans-serif",
     }}>
       <div style={{
-        background: "linear-gradient(to top, rgba(5,10,42,1) 70%, rgba(5,10,42,0.75) 88%, transparent)",
+        background: "linear-gradient(to top, rgba(5,10,42,1) 55%, rgba(5,10,42,0.4) 75%, transparent)",
         padding: "clamp(40px,10vw,100px) clamp(16px,5vw,40px) clamp(24px,5vw,48px)",
         display: "flex", flexDirection: "column", alignItems: "center",
         gap: "clamp(12px,3vw,20px)",
