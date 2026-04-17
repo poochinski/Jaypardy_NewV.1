@@ -19,30 +19,26 @@ function LandingScreen() {
 
   return (
     <div style={{
-      minHeight:           "100vh",
-      width:               "100%",
-      backgroundColor:     "#050a2a",
-      backgroundImage:     "url('/splash.png')",
-      backgroundSize:      "contain",
-      backgroundPosition:  "center 0%",
-      backgroundRepeat:    "no-repeat",
-      display:             "flex",
-      flexDirection:       "column",
-      justifyContent:      "flex-end",
-      fontFamily:          "ui-sans-serif, system-ui, sans-serif",
+      minHeight:          "100vh",
+      width:              "100%",
+      backgroundImage:    "url('/splash.png')",
+      backgroundSize:     "cover",
+      backgroundPosition: "top center",
+      backgroundRepeat:   "no-repeat",
+      backgroundAttachment: "scroll",
+      display:            "flex",
+      flexDirection:      "column",
+      justifyContent:     "flex-end",
+      fontFamily:         "ui-sans-serif, system-ui, sans-serif",
     }}>
       <div style={{
         background: "linear-gradient(to top, rgba(5,10,42,0.97) 40%, rgba(5,10,42,0.3) 60%, transparent 80%)",
-        padding:    "clamp(60px,12vw,120px) clamp(16px,5vw,40px) clamp(20px,4vw,40px)",
+        padding:    "clamp(80px,15vw,140px) clamp(16px,5vw,40px) clamp(20px,4vw,40px)",
         display:    "flex",
         flexDirection: "column",
         alignItems: "center",
         gap:        "clamp(10px,2vw,16px)",
       }}>
-        <div style={{ fontSize: "clamp(11px,2vw,14px)", color: "rgba(246,247,255,0.5)", fontWeight: 700, letterSpacing: 3, textTransform: "uppercase" }}>
-          Who are you?
-        </div>
-
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: "clamp(8px,2vw,14px)", width: "100%", maxWidth: 640 }}>
           {roles.map((role) => (
             <button key={role.path} onClick={() => navigate(role.path)} style={{
