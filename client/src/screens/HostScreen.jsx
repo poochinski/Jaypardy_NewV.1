@@ -536,7 +536,7 @@ export default function HostScreen({ state }) {
           {/* Correct / Wrong — big solid buttons */}
           <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, flexShrink:0 }}>
             <button
-              onClick={() => socket.emit("host:mark", { result: "correct" })}
+              onClick={() => { socket.emit("host:mark", { result: "correct" }); }}
               disabled={!buzz.locked}
               style={{
                 padding:      "16px",
@@ -553,7 +553,7 @@ export default function HostScreen({ state }) {
               Correct ✓
             </button>
             <button
-              onClick={() => socket.emit("host:mark", { result: "wrong" })}
+              onClick={() => { socket.emit("host:mark", { result: "wrong" }); }}
               disabled={!buzz.locked}
               style={{
                 padding:      "16px",

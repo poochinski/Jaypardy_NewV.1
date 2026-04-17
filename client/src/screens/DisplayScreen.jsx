@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import "./jaypardyTheme.css";
-import { playDDChime, playBuzz, playCorrect, playWrong, playSkip } from "../sounds";
+import { playDDChime, playCorrect, playWrong } from "../sounds";
 
 export default function DisplayScreen({ state }) {
   const phase   = state?.phase;
@@ -12,7 +12,6 @@ export default function DisplayScreen({ state }) {
 
   const [revealAnswer, setRevealAnswer] = useState(null);
   const [wrongFlash,   setWrongFlash]   = useState(null);
-  const [soundEnabled, setSoundEnabled] = useState(false);
   const [muted,        setMuted]        = useState(false);
   const prevPhaseRef   = useRef(null);
   const prevBuzzRef    = useRef(null);
@@ -21,23 +20,8 @@ export default function DisplayScreen({ state }) {
   const ddChimeFired   = useRef(false);
   const mutedRef       = useRef(false);
 
-  // Keep mutedRef in sync so the chime function can read it
+  // Keep mutedRef in sync
   useEffect(() => { mutedRef.current = muted; }, [muted]);
-
-  // Unlock audio on first interaction anywhere on the page
-  useEffect(() => {
-    const unlock = () => {
-      setSoundEnabled(true);
-      document.removeEventListener("click", unlock);
-      document.removeEventListener("touchstart", unlock);
-    };
-    document.addEventListener("click", unlock);
-    document.addEventListener("touchstart", unlock);
-    return () => {
-      document.removeEventListener("click", unlock);
-      document.removeEventListener("touchstart", unlock);
-    };
-  }, []);
 
   const visibleTeams = teams.filter((t) =>
     players.some((p) => p.teamId === t.id)
@@ -47,14 +31,14 @@ export default function DisplayScreen({ state }) {
 
   // Play DD chime exactly once when phase becomes dailyDouble
   useEffect(() => {
-    if (phase === "dailyDouble" && !ddChimeFired.current && soundEnabled && !mutedRef.current) {
+    if (phase === "dailyDouble" && !ddChimeFired.current && !mutedRef.current) {
       ddChimeFired.current = true;
       playDDChime();
     }
     if (phase !== "dailyDouble") {
       ddChimeFired.current = false;
     }
-  }, [phase, soundEnabled]);
+  }, [phase]);
 
   // Detect correct answer (clue → board with a buzz locked)
   useEffect(() => {
@@ -93,11 +77,9 @@ export default function DisplayScreen({ state }) {
     prevBuzzRef.current  = buzz;
   }, [phase, buzz]);
 
-  // Detect buzz in
+  // Detect buzz in — sound plays on player phone only, not display
   useEffect(() => {
-    if (buzz?.locked && buzz?.playerId) {
-      if (!mutedRef.current) playBuzz();
-    }
+    // intentionally no sound here
   }, [buzz?.locked, buzz?.playerId]);
 
   // Detect wrong answer — buzz resets but clue stays active
@@ -148,27 +130,6 @@ export default function DisplayScreen({ state }) {
   // ─── Score strip (shared across all views) ────────────────────────────────
   const ScoreStrip = () => (
     <div style={{ position: "relative" }}>
-      {/* Sound unlock banner — shows until user clicks */}
-      {!soundEnabled && (
-        <div style={{
-          position:       "absolute",
-          bottom:         "100%",
-          left:           0,
-          right:          0,
-          background:     "rgba(255,221,117,0.15)",
-          border:         "1px solid rgba(255,221,117,0.35)",
-          color:          "#ffdd75",
-          textAlign:      "center",
-          padding:        "8px",
-          fontSize:       13,
-          fontWeight:     700,
-          letterSpacing:  0.5,
-          zIndex:         10,
-        }}>
-          Tap anywhere to enable sound
-        </div>
-      )}
-
       <div style={{
         display:        "flex",
         gap:            10,
