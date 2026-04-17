@@ -188,8 +188,19 @@ function pickFiveClues(clues) {
 let categoryCache = [];
 
 async function refreshCategoryCache() {
-  categoryCache = await getAllCategories();
-  console.log(`[db] category cache refreshed: ${categoryCache.length} categories`);
+  try {
+    const cats = await getAllCategories();
+    if (cats.length > 0) {
+      categoryCache = cats;
+      console.log(`[db] category cache refreshed: ${categoryCache.length} categories`);
+    } else {
+      console.log("[db] no categories in DB yet, using questions.js fallback");
+      categoryCache = QUESTION_BANK;
+    }
+  } catch (e) {
+    console.error("[db] cache refresh failed, using questions.js fallback:", e.message);
+    categoryCache = QUESTION_BANK;
+  }
 }
 
 async function buildBoard(round = 1) {
@@ -1020,6 +1031,8 @@ initDb()
   })
   .catch((err) => {
     console.error("[db] Failed to initialize database:", err.message);
+    categoryCache = QUESTION_BANK;
+    console.log(`[db] using questions.js fallback (${categoryCache.length} categories)`);
     server.listen(PORT, () =>
       console.log(`Jaypardy server running on http://localhost:${PORT} (no db)`)
     );
