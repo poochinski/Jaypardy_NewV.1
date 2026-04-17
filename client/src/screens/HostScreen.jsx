@@ -904,27 +904,19 @@ export default function HostScreen({ state }) {
               ) : (
                 <button
                   className="jp-btn"
-                  style={{ background:"rgba(255,150,0,0.08)", borderColor:"rgba(255,150,0,0.25)", color:"#fbbf24", gridColumn:"span 2" }}
+                  style={{ background:"rgba(255,150,0,0.08)", borderColor:"rgba(255,150,0,0.25)", color:"#fbbf24" }}
                   disabled={phase === "lobby" || !board}
                   onClick={() => setConfirmSkip(true)}
                 >
                   Skip Round
                 </button>
               )}
-              {confirmSkip && (
-                <div style={{ fontSize:11, color:"rgba(246,247,255,0.4)", gridColumn:"span 2", textAlign:"center", marginTop:-4 }}>
-                  Skips to next round without completing this one
-                  <span style={{ marginLeft:8, color:"#ffdd75", cursor:"pointer" }} onClick={() => setConfirmSkip(false)}>
-                    Cancel
-                  </span>
-                </div>
-              )}
 
               {/* Change Daily Double */}
               {pickingDD ? (
                 <button
                   className="jp-btn"
-                  style={{ background:"rgba(255,221,117,0.18)", borderColor:"rgba(255,221,117,0.5)", color:"#ffdd75", gridColumn:"span 2" }}
+                  style={{ background:"rgba(255,221,117,0.18)", borderColor:"rgba(255,221,117,0.5)", color:"#ffdd75" }}
                   onClick={() => socket.emit("host:cancelPickDD")}
                 >
                   Cancel DD Pick
@@ -932,12 +924,20 @@ export default function HostScreen({ state }) {
               ) : (
                 <button
                   className="jp-btn"
-                  style={{ gridColumn:"span 2" }}
                   disabled={phase !== "board" || !board}
                   onClick={() => socket.emit("host:clearDDs")}
                 >
                   Change Daily Double
                 </button>
+              )}
+
+              {confirmSkip && (
+                <div style={{ fontSize:11, color:"rgba(246,247,255,0.4)", gridColumn:"span 2", textAlign:"center", marginTop:-4 }}>
+                  Skips to next round without completing this one
+                  <span style={{ marginLeft:8, color:"#ffdd75", cursor:"pointer" }} onClick={() => setConfirmSkip(false)}>
+                    Cancel
+                  </span>
+                </div>
               )}
 
               {/* Save / Load Theme */}
@@ -957,22 +957,20 @@ export default function HostScreen({ state }) {
                 Load Theme
               </button>
 
-              {/* Game History */}
+              {/* Game History + Sound Levels */}
               <button
                 className="jp-btn"
-                style={{ gridColumn:"span 2", background:"rgba(160,120,255,0.10)", borderColor:"rgba(160,120,255,0.3)", color:"#c4b5fd" }}
+                style={{ background:"rgba(160,120,255,0.10)", borderColor:"rgba(160,120,255,0.3)", color:"#c4b5fd" }}
                 onClick={() => setShowHistory(true)}
               >
                 Game History
               </button>
-
-              {/* Sound Controls */}
               <button
                 className="jp-btn"
-                style={{ gridColumn:"span 2", background:"rgba(34,197,94,0.10)", borderColor:"rgba(34,197,94,0.3)", color:"#86efac" }}
+                style={{ background:"rgba(34,197,94,0.10)", borderColor:"rgba(34,197,94,0.3)", color:"#86efac" }}
                 onClick={() => setShowSounds(true)}
               >
-                🔊 Sound Levels
+                Sound Levels
               </button>
 
               {confirmReset ? (
