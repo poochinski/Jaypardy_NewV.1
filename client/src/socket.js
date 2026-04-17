@@ -6,9 +6,4 @@ const SERVER_URL =
     ? window.location.origin
     : `http://${window.location.hostname}:5000`);
 
-export const socket = io(SERVER_URL, {
-  autoConnect: false,
-  reconnection: true,
-  reconnectionAttempts: 10,
-  reconnectionDelay: 1000,
-});
+export const socket = io(SERVER_URL);
