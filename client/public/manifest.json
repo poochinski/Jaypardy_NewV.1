@@ -1,0 +1,22 @@
+{
+  "name": "Jaypardy",
+  "short_name": "Jaypardy",
+  "description": "A multiplayer Jeopardy-style party game",
+  "start_url": "/",
+  "display": "fullscreen",
+  "orientation": "portrait",
+  "background_color": "#050a2a",
+  "theme_color": "#050a2a",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
