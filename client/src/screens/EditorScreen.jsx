@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { socket } from "../socket";
 import "./jaypardyTheme.css";
 
@@ -43,6 +43,11 @@ export default function EditorScreen() {
   const [savedFlash,    setSavedFlash]    = useState(false);
   const [showCatList,   setShowCatList]   = useState(true);
 
+  // ── NEW: category name editing state ──────────────────────────────────────
+  const [editingCatName,    setEditingCatName]    = useState(false);
+  const [catNameDraft,      setCatNameDraft]      = useState("");
+  const catNameInputRef = useRef(null);
+
   useEffect(() => {
     socket.emit("editor:getAll");
     const onData = (data) => setCategories(data);
@@ -64,6 +69,26 @@ export default function EditorScreen() {
     if (!selected) return;
     socket.emit("editor:saveCategory", { name: selected, clues: newClues });
     flashSaved();
+  };
+
+  // ── NEW: rename handler ────────────────────────────────────────────────────
+  const handleRenameCategory = () => {
+    const newName = catNameDraft.trim();
+    if (!newName || newName === selected) {
+      setEditingCatName(false);
+      return;
+    }
+    socket.emit("editor:renameCategory", { oldName: selected, newName });
+    setSelected(newName);
+    setEditingCatName(false);
+    flashSaved();
+  };
+
+  const startEditingCatName = () => {
+    setCatNameDraft(selected);
+    setEditingCatName(true);
+    // Focus the input after render
+    setTimeout(() => catNameInputRef.current?.focus(), 50);
   };
 
   const handleDiffChange = (clueIndex, diff) => {
@@ -116,6 +141,7 @@ export default function EditorScreen() {
   const selectCategory = (name) => {
     setSelected(name);
     setEditingClue(null);
+    setEditingCatName(false);
     setShowCatList(false);
   };
 
@@ -216,14 +242,63 @@ export default function EditorScreen() {
         {/* ── Clue list ── */}
         {!showCatList && selected && (
           <div style={{ flex:1, display:"flex", flexDirection:"column", overflow:"hidden" }}>
+
+            {/* Category header — with inline name editing */}
             <div style={{ padding:"12px 16px", borderBottom:"1px solid rgba(255,255,255,0.08)", background:"rgba(0,0,0,0.15)", flexShrink:0 }}>
               <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:8 }}>
                 <div style={{ flex:1 }}>
-                  <div style={{ fontWeight:900, fontSize:17, color:"#ffdd75" }}>{selected}</div>
-                  <div style={{ fontSize:12, color:"rgba(246,247,255,0.4)", marginTop:2 }}>{selectedCat?.clues.length ?? 0} clues</div>
+
+                  {/* ── Name edit mode ── */}
+                  {editingCatName ? (
+                    <div style={{ display:"flex", gap:8, alignItems:"center" }}>
+                      <input
+                        ref={catNameInputRef}
+                        value={catNameDraft}
+                        onChange={(e) => setCatNameDraft(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") handleRenameCategory();
+                          if (e.key === "Escape") setEditingCatName(false);
+                        }}
+                        maxLength={60}
+                        style={{
+                          flex:1, padding:"8px 12px", fontSize:16, fontWeight:900,
+                          borderRadius:8, border:"2px solid rgba(255,221,117,0.5)",
+                          background:"rgba(255,221,117,0.08)", color:"#ffdd75",
+                          outline:"none",
+                        }}
+                      />
+                      <button
+                        onClick={handleRenameCategory}
+                        disabled={!catNameDraft.trim()}
+                        style={{ padding:"8px 14px", borderRadius:8, fontSize:13, fontWeight:900, border:"none", background: catNameDraft.trim() ? "#ffdd75" : "rgba(255,255,255,0.08)", color: catNameDraft.trim() ? "#000" : "rgba(255,255,255,0.3)", cursor: catNameDraft.trim() ? "pointer" : "not-allowed", flexShrink:0 }}>
+                        Save
+                      </button>
+                      <button
+                        onClick={() => setEditingCatName(false)}
+                        style={{ padding:"8px 12px", borderRadius:8, fontSize:13, fontWeight:700, border:"1px solid rgba(255,255,255,0.12)", background:"transparent", color:"rgba(246,247,255,0.5)", cursor:"pointer", flexShrink:0 }}>
+                        Cancel
+                      </button>
+                    </div>
+                  ) : (
+                    /* ── Name display mode — tap to edit ── */
+                    <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                      <div style={{ fontWeight:900, fontSize:17, color:"#ffdd75" }}>{selected}</div>
+                      <button
+                        onClick={startEditingCatName}
+                        style={{ padding:"4px 10px", borderRadius:6, fontSize:12, fontWeight:700, border:"1px solid rgba(255,221,117,0.25)", background:"rgba(255,221,117,0.07)", color:"rgba(255,221,117,0.6)", cursor:"pointer", flexShrink:0 }}>
+                        Rename
+                      </button>
+                    </div>
+                  )}
+
+                  <div style={{ fontSize:12, color:"rgba(246,247,255,0.4)", marginTop:4 }}>
+                    {selectedCat?.clues.length ?? 0} clues
+                  </div>
                 </div>
-                {savedFlash && <div style={{ fontSize:13, fontWeight:700, color:"#21c55d" }}>Saved ✓</div>}
+                {savedFlash && <div style={{ fontSize:13, fontWeight:700, color:"#21c55d", flexShrink:0 }}>Saved ✓</div>}
               </div>
+
+              {/* Difficulty legend */}
               <div style={{ display:"flex", gap:10, flexWrap:"wrap" }}>
                 {[["easy","#86efac","rows 1-2"],["medium","#fde68a","rows 3-4"],["hard","#fca5a5","row 5"]].map(([d,col,rows]) => (
                   <div key={d} style={{ display:"flex", alignItems:"center", gap:4 }}>

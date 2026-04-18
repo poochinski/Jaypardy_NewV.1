@@ -531,12 +531,12 @@ export default function HostScreen({ state }) {
               {paused ? (
                 <button className="jp-btn" style={{ gridColumn:"span 2", background:"rgba(33,197,93,0.15)", borderColor:"rgba(33,197,93,0.4)", color:"#86efac", fontWeight:900 }}
                   onClick={() => socket.emit("host:resume")}>
-                  ▶ Resume Game
+                  Resume Game
                 </button>
               ) : (
                 <button className="jp-btn" style={{ gridColumn:"span 2", background:"rgba(255,221,117,0.10)", borderColor:"rgba(255,221,117,0.3)", color:"#ffdd75" }}
                   onClick={() => setPauseMenuOpen(true)}>
-                  ⏸ Pause Game
+                  Pause Game
                 </button>
               )}
 
