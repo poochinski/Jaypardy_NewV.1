@@ -40,10 +40,6 @@ html, body {
   padding: 0;
 }
 
-body {
-  padding-top: env(safe-area-inset-top, 0px);
-  background: #050a2a;
-}
 
 /* full-page background */
 .jp-root{
