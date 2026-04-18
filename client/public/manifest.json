@@ -3,7 +3,7 @@
   "short_name": "Jaypardy",
   "description": "A multiplayer Jeopardy-style party game",
   "start_url": "/",
-  "display": "fullscreen",
+  "display": "standalone",
   "orientation": "portrait",
   "background_color": "#050a2a",
   "theme_color": "#050a2a",
