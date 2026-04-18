@@ -9,7 +9,7 @@
   --jp-panel: rgba(10, 18, 72, 0.92);
   --jp-panel2: rgba(14, 25, 92, 0.92);
 
-  --jp-board: #0b1f7a;        /* Jeopardy-ish blue */
+  --jp-board: #0b1f7a;
   --jp-board2: #08185f;
 
   --jp-gold: #f2c94c;
@@ -26,17 +26,36 @@
 
   --jp-good: #21c55d;
   --jp-bad: #ef4444;
+
+  /* Safe area insets — automatically correct on iPhone notch/dynamic island */
+  --sat: env(safe-area-inset-top, 0px);
+  --sar: env(safe-area-inset-right, 0px);
+  --sab: env(safe-area-inset-bottom, 0px);
+  --sal: env(safe-area-inset-left, 0px);
+}
+
+/* Ensure safe area is respected on all full-height screens */
+html, body {
+  margin: 0;
+  padding: 0;
 }
 
 /* full-page background */
 .jp-root{
   min-height: 100vh;
+  min-height: 100dvh; /* dynamic viewport height — correct on mobile browsers */
   background:
     radial-gradient(1200px 700px at 25% 0%, rgba(255, 221, 117, 0.10), transparent 55%),
     radial-gradient(900px 600px at 80% 20%, rgba(60, 99, 255, 0.20), transparent 55%),
     linear-gradient(180deg, var(--jp-bg), #030621);
   color: var(--jp-text);
   font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+  /* Push content below the notch/dynamic island */
+  padding-top: var(--sat);
+  padding-left: var(--sal);
+  padding-right: var(--sar);
+  padding-bottom: var(--sab);
+  box-sizing: border-box;
 }
 
 /* top bar */

@@ -20,24 +20,62 @@ function LandingScreen() {
   return (
     <div style={{
       minHeight:          "100vh",
+      minHeight:          "100dvh",
       width:              "100%",
-      backgroundImage:    "url('/splash.png')",
-      backgroundSize:     "cover",
-      backgroundPosition: "top center",
       backgroundRepeat:   "no-repeat",
       backgroundAttachment: "scroll",
       display:            "flex",
       flexDirection:      "column",
       justifyContent:     "flex-end",
       fontFamily:         "ui-sans-serif, system-ui, sans-serif",
+      // Default (desktop) — overridden by CSS media queries below
+      backgroundImage:    "url('/splash-desktop.png')",
+      backgroundSize:     "cover",
+      backgroundPosition: "top center",
     }}>
+
+      {/* ── Responsive background via a hidden style tag ── */}
+      <style>{`
+        .jp-landing {
+          background-image: url('/splash-desktop.png');
+          background-size: cover;
+          background-position: top center;
+        }
+        /* Tablet: 768px–1199px */
+        @media (max-width: 1199px) and (min-width: 768px) {
+          .jp-landing {
+            background-image: url('/splash-tablet.png');
+            background-position: top center;
+          }
+        }
+        /* Mobile: up to 767px */
+        @media (max-width: 767px) {
+          .jp-landing {
+            background-image: url('/splash-mobile.png');
+            background-position: top center;
+          }
+        }
+      `}</style>
+
+      <div className="jp-landing" style={{
+        position:   "absolute",
+        inset:      0,
+        backgroundRepeat: "no-repeat",
+        backgroundAttachment: "scroll",
+        backgroundSize: "cover",
+        backgroundPosition: "top center",
+        zIndex:     0,
+      }} />
+
       <div style={{
-        background: "linear-gradient(to top, rgba(5,10,42,0.97) 40%, rgba(5,10,42,0.3) 60%, transparent 80%)",
-        padding:    "clamp(120px,20vw,200px) clamp(16px,5vw,40px) clamp(20px,4vw,40px)",
-        display:    "flex",
+        position:      "relative",
+        zIndex:        1,
+        background:    "linear-gradient(to top, rgba(5,10,42,0.97) 40%, rgba(5,10,42,0.3) 60%, transparent 80%)",
+        padding:       "clamp(120px,20vw,200px) clamp(16px,5vw,40px) clamp(20px,4vw,40px)",
+        display:       "flex",
         flexDirection: "column",
-        alignItems: "center",
-        gap:        "clamp(10px,2vw,16px)",
+        alignItems:    "center",
+        gap:           "clamp(10px,2vw,16px)",
       }}>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: "clamp(8px,2vw,14px)", width: "100%", maxWidth: 640 }}>
           {roles.map((role) => (
