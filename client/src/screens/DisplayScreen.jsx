@@ -10,8 +10,8 @@ export default function DisplayScreen({ state }) {
   const buzz    = state?.buzz;
   const teams   = state?.teams ?? [];
   const players = state?.players ?? [];
-  const paused       = state?.paused ?? false;       // ── NEW
-  const pauseMessage = state?.pauseMessage ?? "";    // ── NEW
+  const paused       = state?.paused ?? false;
+  const pauseMessage = state?.pauseMessage ?? "";
 
   const [revealAnswer, setRevealAnswer] = useState(null);
   const [wrongFlash,   setWrongFlash]   = useState(null);
@@ -44,12 +44,21 @@ export default function DisplayScreen({ state }) {
   useEffect(() => {
     const prevPhase = prevPhaseRef.current;
     const prevBuzz  = prevBuzzRef.current;
+
     if (
       (prevPhase === "clue" || prevPhase === "dailyDoubleClue") &&
       phase === "board" &&
       prevBuzz?.locked &&
-      prevBuzz?.teamId
+      prevBuzz?.teamId &&
+      // ── FIX: only show CORRECT if a score actually changed (correct mark)
+      // On skip, buzz is cleared server-side before state is sent, so
+      // we detect correct by checking if any team's score increased
+      // compared to what we'd expect — simplest reliable signal is
+      // checking the sound:cue which fires only on correct/wrong.
+      // Instead we use a ref flag set by the sound cue listener.
+      correctFiredRef.current
     ) {
+      correctFiredRef.current = false;
       const team = teamById[prevBuzz.teamId];
       setRevealAnswer({
         teamName: team?.name ?? "",
@@ -59,16 +68,26 @@ export default function DisplayScreen({ state }) {
       });
       clearTimeout(revealTimer.current);
       revealTimer.current = setTimeout(() => setRevealAnswer(null), 2500);
+    } else {
+      correctFiredRef.current = false;
     }
+
     prevPhaseRef.current = phase;
     prevBuzzRef.current  = buzz;
   }, [phase, buzz]);
 
+  // ── Track whether a correct sound cue just fired ──────────────────────────
+  const correctFiredRef = useRef(false);
+
   useEffect(() => {
     const onCue = (cue) => {
-      if (mutedRef.current) return;
-      if (cue === "correct") playCorrect();
-      if (cue === "wrong")   playWrong();
+      if (cue === "correct") {
+        correctFiredRef.current = true;
+        if (!mutedRef.current) playCorrect();
+      }
+      if (cue === "wrong") {
+        if (!mutedRef.current) playWrong();
+      }
     };
     socket.on("sound:cue", onCue);
     return () => socket.off("sound:cue", onCue);
@@ -172,21 +191,14 @@ export default function DisplayScreen({ state }) {
     </div>
   );
 
-  // ── NEW: Pause overlay — shown on all screens when game is paused ─────────
+  // ── Pause overlay ─────────────────────────────────────────────────────────
   if (paused) {
     return (
       <div className="jp-root" style={{ minHeight: "100vh", display: "flex", flexDirection: "column" }}>
         <ScoreStrip />
-        <div style={{
-          flex: 1, display: "flex", flexDirection: "column",
-          alignItems: "center", justifyContent: "center",
-          gap: 24, textAlign: "center", padding: 40,
-        }}>
+        <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 24, textAlign: "center", padding: 40 }}>
           <div style={{ fontSize: "clamp(64px, 12vw, 120px)", lineHeight: 1 }}>⏸</div>
-          <div style={{
-            fontSize: "clamp(32px, 6vw, 64px)", fontWeight: 900, color: "#ffffff",
-            lineHeight: 1.2, maxWidth: 700,
-          }}>
+          <div style={{ fontSize: "clamp(32px, 6vw, 64px)", fontWeight: 900, color: "#ffffff", lineHeight: 1.2, maxWidth: 700 }}>
             {pauseMessage || "Stand By"}
           </div>
           <div style={{ fontSize: "clamp(14px, 2vw, 20px)", color: "rgba(246,247,255,0.4)", fontWeight: 700 }}>
