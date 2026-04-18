@@ -72,6 +72,14 @@ async function upsertCategory(name, clues) {
   );
 }
 
+// ── NEW: rename a category ────────────────────────────────────────────────────
+async function renameCategory(oldName, newName) {
+  await pool.query(
+    `UPDATE categories SET name = $1 WHERE name = $2`,
+    [newName, oldName]
+  );
+}
+
 async function deleteCategory(name) {
   await pool.query("DELETE FROM categories WHERE name = $1", [name]);
 }
@@ -130,9 +138,6 @@ function pickRandom(arr, n) {
   return out;
 }
 
-// Pick clues for a single row using difficulty tiers
-// Row 0-1 = easy tier, row 2-3 = medium tier, row 4 = hard tier
-// Untagged clues (no d field) are wildcards that fill any slot
 function pickClueForRow(clues, rowIndex, usedIds) {
   const tierMap = {
     0: ["easy"],
@@ -150,7 +155,6 @@ function pickClueForRow(clues, rowIndex, usedIds) {
   const untagged_pool  = available.filter((cl) => !cl.d);
   const any_pool       = available;
 
-  // Try preferred tier first, then untagged, then anything
   const pool = preferred_pool.length > 0
     ? preferred_pool
     : untagged_pool.length > 0
@@ -162,21 +166,17 @@ function pickClueForRow(clues, rowIndex, usedIds) {
 }
 
 function pickFiveClues(clues) {
-  // If no clues have difficulty tags, just pick 5 randomly (fast path)
   const hasAnyTags = clues.some((cl) => cl.d);
   if (!hasAnyTags) return pickRandom(clues, 5);
 
-  const used = new Set();
   const chosen = [];
 
   for (let row = 0; row < 5; row++) {
-    // Build a set of actual indices for tracking
     const usedIndices = new Set(chosen.map((cl) => clues.indexOf(cl)));
     const cl = pickClueForRow(clues, row, usedIndices);
     if (cl) {
       chosen.push(cl);
     } else {
-      // Fallback — pick any unused clue
       const remaining = clues.filter((c) => !chosen.includes(c));
       if (remaining.length > 0) {
         chosen.push(remaining[Math.floor(Math.random() * remaining.length)]);
@@ -233,7 +233,6 @@ async function buildBoard(round = 1) {
     };
   });
 
-  // Daily doubles — rows 1-4 only (never the cheapest clue)
   const ddPlaced = new Set();
   let attempts = 0;
   while (ddPlaced.size < ddCount && attempts < 50) {
@@ -264,6 +263,8 @@ function freshBuzz() {
 function freshState() {
   return {
     phase:         "lobby",
+    paused:        false,        // ── NEW
+    pauseMessage:  "",           // ── NEW
     players:       [],
     teams:         TEAMS.map((t) => ({ ...t, score: 0 })),
     controlTeamId: null,
@@ -355,6 +356,20 @@ io.on("connection", (socket) => {
       console.error("[themes] deleteTheme error:", e.message);
     }
   });
+
+  // ── NEW: Pause / Resume ───────────────────────────────────────────────────
+
+  socket.on("host:pause", ({ message }) => {
+    state = { ...state, paused: true, pauseMessage: message || "Stand By" };
+    emitState();
+  });
+
+  socket.on("host:resume", () => {
+    state = { ...state, paused: false, pauseMessage: "" };
+    emitState();
+  });
+
+  // ─────────────────────────────────────────────────────────────────────────
 
   // Player joins
   socket.on("player:join", ({ name, emoji }) => {
@@ -548,7 +563,6 @@ io.on("connection", (socket) => {
     const clue = col.clues[rowIndex];
     if (!clue || clue.used || clue.isDD) return;
 
-    // Only rows 1-4 (index 1-4, the $400+ rows)
     if (rowIndex < 1) return;
 
     const ddNeeded = state.board.round === 2 ? 2 : 1;
@@ -611,8 +625,6 @@ io.on("connection", (socket) => {
     const clue = col.clues[rowIndex];
     if (!clue || clue.used) return;
 
-    // Work out who should submit the wager for a DD
-    // First player on the control team, or first player overall
     const wagerTeamId = state.controlTeamId
       ?? state.players.find((p) => p.teamId)?.teamId
       ?? null;
@@ -633,7 +645,6 @@ io.on("connection", (socket) => {
         answer:   clue.answer,
         value:    clue.value,
         isDD:     clue.isDD,
-        // Who should enter the wager (DD only)
         wagerTeamId,
         wagerPlayerId,
       },
@@ -652,7 +663,6 @@ io.on("connection", (socket) => {
     const parsed = parseInt(amount, 10);
     if (!isFinite(parsed) || parsed < 1) return;
 
-    // Wager can't exceed team's current score (min 1000 if score is less)
     const team      = state.teams.find((t) => t.id === state.currentClue.wagerTeamId);
     const maxWager  = Math.max(team?.score ?? 0, 1000);
     const safeWager = Math.min(parsed, maxWager);
@@ -674,7 +684,6 @@ io.on("connection", (socket) => {
     const p = state.players.find((x) => x.id === socket.id);
     if (!p || !p.teamId) return;
 
-    // For DD clue only the wager player can buzz
     if (state.phase === "dailyDoubleClue" &&
         p.id !== state.currentClue?.wagerPlayerId) return;
 
@@ -926,7 +935,6 @@ io.on("connection", (socket) => {
       };
     });
 
-    // Place daily doubles
     const ddPlaced = new Set();
     let attempts = 0;
     while (ddPlaced.size < ddCount && attempts < 50) {
@@ -951,7 +959,6 @@ io.on("connection", (socket) => {
 
   // ─── Clue Editor API ─────────────────────────────────────────────────────
 
-  // Get all categories with clues
   socket.on("editor:getAll", async () => {
     try {
       const cats = await getAllCategories();
@@ -961,7 +968,6 @@ io.on("connection", (socket) => {
     }
   });
 
-  // Save a category (create or update)
   socket.on("editor:saveCategory", async ({ name, clues }) => {
     if (!name?.trim() || !Array.isArray(clues)) return;
     try {
@@ -969,14 +975,26 @@ io.on("connection", (socket) => {
       await refreshCategoryCache();
       const cats = await getAllCategories();
       socket.emit("editor:data", cats);
-      // Also update category list for host screens
       io.emit("categories:update", categoryCache.map((c) => c.category));
     } catch (e) {
       console.error("[editor] saveCategory error:", e.message);
     }
   });
 
-  // Delete a category
+  // ── NEW: Rename a category ────────────────────────────────────────────────
+  socket.on("editor:renameCategory", async ({ oldName, newName }) => {
+    if (!oldName?.trim() || !newName?.trim()) return;
+    try {
+      await renameCategory(oldName.trim(), newName.trim());
+      await refreshCategoryCache();
+      const cats = await getAllCategories();
+      socket.emit("editor:data", cats);
+      io.emit("categories:update", categoryCache.map((c) => c.category));
+    } catch (e) {
+      console.error("[editor] renameCategory error:", e.message);
+    }
+  });
+
   socket.on("editor:deleteCategory", async ({ name }) => {
     try {
       await deleteCategory(name);
@@ -999,13 +1017,11 @@ io.on("connection", (socket) => {
   socket.on("disconnect", () => {
     console.log(`[-] ${socket.id}`);
     const wasBuzzer = state.buzz.playerId === socket.id;
-
     state = {
       ...state,
       players: state.players.filter((p) => p.id !== socket.id),
       buzz:    wasBuzzer ? freshBuzz() : state.buzz,
     };
-
     emitState();
   });
 });
@@ -1016,7 +1032,6 @@ const clientBuild = path.join(__dirname, "../client/dist");
 
 app.use(express.static(clientBuild));
 
-// All non-API routes serve the React app — handles /host, /player, /display
 app.get("/{*path}", (req, res) => {
   res.sendFile(path.join(clientBuild, "index.html"));
 });
