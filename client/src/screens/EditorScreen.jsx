@@ -15,16 +15,12 @@ function DiffButton({ value, selected, onSelect }) {
     <button
       onClick={() => onSelect(selected === value ? null : value)}
       style={{
-        padding:      "6px 14px",
-        borderRadius: 8,
-        border:       selected === value ? `2px solid ${c.border}` : "1px solid rgba(255,255,255,0.12)",
-        background:   selected === value ? c.bg : "rgba(255,255,255,0.04)",
-        color:        selected === value ? c.text : "rgba(246,247,255,0.4)",
-        fontSize:     13,
-        fontWeight:   selected === value ? 900 : 600,
-        cursor:       "pointer",
-        minWidth:     70,
-        minHeight:    40,
+        padding: "6px 14px", borderRadius: 8,
+        border: selected === value ? `2px solid ${c.border}` : "1px solid rgba(255,255,255,0.12)",
+        background: selected === value ? c.bg : "rgba(255,255,255,0.04)",
+        color: selected === value ? c.text : "rgba(246,247,255,0.4)",
+        fontSize: 13, fontWeight: selected === value ? 900 : 600,
+        cursor: "pointer", minWidth: 70, minHeight: 40,
       }}
     >
       {DIFF_LABELS[value]}
@@ -32,7 +28,13 @@ function DiffButton({ value, selected, onSelect }) {
   );
 }
 
+// ── Tab constants ─────────────────────────────────────────────────────────────
+const TAB_CATEGORIES = "categories";
+const TAB_CLUES      = "clues";
+const TAB_THEMES     = "themes";
+
 export default function EditorScreen() {
+  // ── Categories state ──────────────────────────────────────────────────────
   const [categories,    setCategories]    = useState([]);
   const [selected,      setSelected]      = useState(null);
   const [search,        setSearch]        = useState("");
@@ -41,20 +43,43 @@ export default function EditorScreen() {
   const [showNewCat,    setShowNewCat]    = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(null);
   const [savedFlash,    setSavedFlash]    = useState(false);
-  const [showCatList,   setShowCatList]   = useState(true);
-
-  // ── NEW: category name editing state ──────────────────────────────────────
-  const [editingCatName,    setEditingCatName]    = useState(false);
-  const [catNameDraft,      setCatNameDraft]      = useState("");
+  const [editingCatName, setEditingCatName] = useState(false);
+  const [catNameDraft,   setCatNameDraft]   = useState("");
   const catNameInputRef = useRef(null);
 
+  // ── Themes state ──────────────────────────────────────────────────────────
+  const [themes,           setThemes]           = useState({});
+  const [themeSearch,      setThemeSearch]       = useState("");
+  const [editingTheme,     setEditingTheme]      = useState(null); // null | { name, categories[] }
+  const [newThemeName,     setNewThemeName]      = useState("");
+  const [showNewTheme,     setShowNewTheme]      = useState(false);
+  const [confirmDelTheme,  setConfirmDelTheme]   = useState(null);
+  const [themeNameDraft,   setThemeNameDraft]    = useState("");
+  const [editingThemeName, setEditingThemeName]  = useState(false);
+  const [themeCatSearch,   setThemeCatSearch]    = useState("");
+  const [themeSavedFlash,  setThemeSavedFlash]   = useState(false);
+
+  // ── Active tab ────────────────────────────────────────────────────────────
+  const [activeTab, setActiveTab] = useState(TAB_CATEGORIES);
+
+  // ── Socket setup ──────────────────────────────────────────────────────────
   useEffect(() => {
     socket.emit("editor:getAll");
-    const onData = (data) => setCategories(data);
-    socket.on("editor:data", onData);
-    return () => socket.off("editor:data", onData);
+    socket.emit("host:getThemes");
+
+    const onCatData   = (data)   => setCategories(data);
+    const onThemeData = (themes) => setThemes(themes);
+
+    socket.on("editor:data",   onCatData);
+    socket.on("themes:update", onThemeData);
+
+    return () => {
+      socket.off("editor:data",   onCatData);
+      socket.off("themes:update", onThemeData);
+    };
   }, []);
 
+  // ── Category helpers ──────────────────────────────────────────────────────
   const selectedCat  = categories.find((c) => c.category === selected);
   const filteredCats = categories.filter((c) =>
     c.category.toLowerCase().includes(search.toLowerCase())
@@ -65,19 +90,20 @@ export default function EditorScreen() {
     setTimeout(() => setSavedFlash(false), 1800);
   };
 
+  const flashThemeSaved = () => {
+    setThemeSavedFlash(true);
+    setTimeout(() => setThemeSavedFlash(false), 1800);
+  };
+
   const saveClues = (newClues) => {
     if (!selected) return;
     socket.emit("editor:saveCategory", { name: selected, clues: newClues });
     flashSaved();
   };
 
-  // ── NEW: rename handler ────────────────────────────────────────────────────
   const handleRenameCategory = () => {
     const newName = catNameDraft.trim();
-    if (!newName || newName === selected) {
-      setEditingCatName(false);
-      return;
-    }
+    if (!newName || newName === selected) { setEditingCatName(false); return; }
     socket.emit("editor:renameCategory", { oldName: selected, newName });
     setSelected(newName);
     setEditingCatName(false);
@@ -87,14 +113,13 @@ export default function EditorScreen() {
   const startEditingCatName = () => {
     setCatNameDraft(selected);
     setEditingCatName(true);
-    // Focus the input after render
     setTimeout(() => catNameInputRef.current?.focus(), 50);
   };
 
   const handleDiffChange = (clueIndex, diff) => {
     if (!selectedCat) return;
     const cleaned = selectedCat.clues.map((cl, i) => {
-      const out = { q: cl.q, a: cl.a };
+      const out  = { q: cl.q, a: cl.a };
       const newD = i === clueIndex ? diff : cl.d;
       if (newD) out.d = newD;
       return out;
@@ -108,12 +133,9 @@ export default function EditorScreen() {
     if (!q?.trim() || !a?.trim()) return;
     const clueObj = { q: q.trim(), a: a.trim() };
     if (d) clueObj.d = d;
-    let newClues;
-    if (index === "new") {
-      newClues = [...selectedCat.clues, clueObj];
-    } else {
-      newClues = selectedCat.clues.map((cl, i) => i === index ? clueObj : cl);
-    }
+    const newClues = index === "new"
+      ? [...selectedCat.clues, clueObj]
+      : selectedCat.clues.map((cl, i) => i === index ? clueObj : cl);
     saveClues(newClues);
     setEditingClue(null);
   };
@@ -129,12 +151,12 @@ export default function EditorScreen() {
     setSelected(newCatName.trim());
     setNewCatName("");
     setShowNewCat(false);
-    setShowCatList(false);
+    setActiveTab(TAB_CLUES);
   };
 
   const handleDeleteCategory = (name) => {
     socket.emit("editor:deleteCategory", { name });
-    if (selected === name) setSelected(null);
+    if (selected === name) { setSelected(null); setActiveTab(TAB_CATEGORIES); }
     setConfirmDelete(null);
   };
 
@@ -142,16 +164,71 @@ export default function EditorScreen() {
     setSelected(name);
     setEditingClue(null);
     setEditingCatName(false);
-    setShowCatList(false);
+    setActiveTab(TAB_CLUES);
   };
 
   const diffStats = (clues) => {
     const e = clues.filter((c) => c.d === "easy").length;
     const m = clues.filter((c) => c.d === "medium").length;
     const h = clues.filter((c) => c.d === "hard").length;
-    const u = clues.length - e - m - h;
-    return { e, m, h, u };
+    return { e, m, h, u: clues.length - e - m - h };
   };
+
+  // ── Theme helpers ─────────────────────────────────────────────────────────
+  const filteredThemes = Object.keys(themes).filter((n) =>
+    n.toLowerCase().includes(themeSearch.toLowerCase())
+  );
+
+  const handleCreateTheme = () => {
+    if (!newThemeName.trim()) return;
+    // Start editing a new empty theme
+    setEditingTheme({ name: newThemeName.trim(), categories: [] });
+    setNewThemeName("");
+    setShowNewTheme(false);
+    setThemeCatSearch("");
+    setEditingThemeName(false);
+  };
+
+  const handleSaveTheme = () => {
+    if (!editingTheme) return;
+    if (editingTheme.categories.length !== 6) return;
+    socket.emit("host:saveTheme", { name: editingTheme.name, categories: editingTheme.categories });
+    setEditingTheme(null);
+    flashThemeSaved();
+  };
+
+  const handleDeleteTheme = (name) => {
+    socket.emit("host:deleteTheme", { name });
+    setConfirmDelTheme(null);
+  };
+
+  const handleRenameTheme = () => {
+    if (!themeNameDraft.trim() || !editingTheme) return;
+    const newName = themeNameDraft.trim();
+    // Delete old, save new
+    if (editingTheme.name !== newName) {
+      socket.emit("host:deleteTheme", { name: editingTheme.name });
+    }
+    setEditingTheme((p) => ({ ...p, name: newName }));
+    setEditingThemeName(false);
+  };
+
+  const toggleThemeCat = (catName) => {
+    if (!editingTheme) return;
+    const current = editingTheme.categories;
+    if (current.includes(catName)) {
+      setEditingTheme((p) => ({ ...p, categories: current.filter((c) => c !== catName) }));
+    } else if (current.length < 6) {
+      setEditingTheme((p) => ({ ...p, categories: [...current, catName] }));
+    }
+  };
+
+  // ── Tab bar ───────────────────────────────────────────────────────────────
+  const tabs = [
+    { id: TAB_CATEGORIES, label: "Categories" },
+    { id: TAB_CLUES,      label: selected ? `${selected} (${selectedCat?.clues.length ?? 0})` : "Select Category", disabled: !selected },
+    { id: TAB_THEMES,     label: "Themes" },
+  ];
 
   return (
     <div style={{ minHeight:"100vh", background:"#050a2a", color:"#f6f7ff", fontFamily:"ui-sans-serif, system-ui, sans-serif", display:"flex", flexDirection:"column" }}>
@@ -165,32 +242,39 @@ export default function EditorScreen() {
           CLUE EDITOR
         </div>
         <div style={{ fontSize:12, color:"rgba(246,247,255,0.4)", flexShrink:0 }}>
-          {categories.length} categories
+          {categories.length} cats · {Object.keys(themes).length} themes
         </div>
       </header>
 
       {/* Tab bar */}
       <div style={{ display:"flex", borderBottom:"1px solid rgba(255,255,255,0.08)", flexShrink:0, background:"rgba(0,0,0,0.15)" }}>
-        <button onClick={() => setShowCatList(true)} style={{ flex:1, padding:"13px", fontSize:14, fontWeight:700, border:"none", background: showCatList ? "rgba(255,221,117,0.12)" : "transparent", color: showCatList ? "#ffdd75" : "rgba(246,247,255,0.45)", borderBottom: showCatList ? "2px solid #ffdd75" : "2px solid transparent", cursor:"pointer" }}>
-          Categories
-        </button>
-        <button onClick={() => selected && setShowCatList(false)} disabled={!selected} style={{ flex:1, padding:"13px", fontSize:14, fontWeight:700, border:"none", background: !showCatList ? "rgba(255,221,117,0.12)" : "transparent", color: !showCatList ? "#ffdd75" : selected ? "rgba(246,247,255,0.45)" : "rgba(246,247,255,0.2)", borderBottom: !showCatList ? "2px solid #ffdd75" : "2px solid transparent", cursor: selected ? "pointer" : "not-allowed" }}>
-          {selected ? `${selected} (${selectedCat?.clues.length ?? 0})` : "Select a category"}
-        </button>
+        {tabs.map((tab) => (
+          <button
+            key={tab.id}
+            onClick={() => !tab.disabled && setActiveTab(tab.id)}
+            disabled={tab.disabled}
+            style={{
+              flex:1, padding:"13px", fontSize:13, fontWeight:700, border:"none",
+              background: activeTab === tab.id ? "rgba(255,221,117,0.12)" : "transparent",
+              color: activeTab === tab.id ? "#ffdd75" : tab.disabled ? "rgba(246,247,255,0.2)" : "rgba(246,247,255,0.45)",
+              borderBottom: activeTab === tab.id ? "2px solid #ffdd75" : "2px solid transparent",
+              cursor: tab.disabled ? "not-allowed" : "pointer",
+              whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+            }}
+          >
+            {tab.label}
+          </button>
+        ))}
       </div>
 
       <div style={{ flex:1, overflow:"hidden", display:"flex", flexDirection:"column" }}>
 
-        {/* ── Category list ── */}
-        {showCatList && (
+        {/* ════ CATEGORIES TAB ════ */}
+        {activeTab === TAB_CATEGORIES && (
           <div style={{ flex:1, display:"flex", flexDirection:"column", overflow:"hidden" }}>
             <div style={{ padding:"12px 14px", borderBottom:"1px solid rgba(255,255,255,0.06)", flexShrink:0 }}>
-              <input
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search categories..."
-                style={{ width:"100%", padding:"10px 14px", fontSize:15, borderRadius:10, border:"1px solid rgba(255,255,255,0.15)", background:"rgba(255,255,255,0.07)", color:"#f6f7ff", outline:"none", boxSizing:"border-box", marginBottom:10 }}
-              />
+              <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search categories..."
+                style={{ width:"100%", padding:"10px 14px", fontSize:15, borderRadius:10, border:"1px solid rgba(255,255,255,0.15)", background:"rgba(255,255,255,0.07)", color:"#f6f7ff", outline:"none", boxSizing:"border-box", marginBottom:10 }} />
               {showNewCat ? (
                 <div style={{ display:"flex", gap:8 }}>
                   <input autoFocus value={newCatName} onChange={(e) => setNewCatName(e.target.value)} onKeyDown={(e) => e.key === "Enter" && handleCreateCategory()} placeholder="New category name..." maxLength={60}
@@ -211,12 +295,12 @@ export default function EditorScreen() {
                 </button>
               )}
             </div>
-
             <div style={{ flex:1, overflowY:"auto", padding:"8px 10px" }}>
               {filteredCats.map((cat) => {
                 const { e, m, h, u } = diffStats(cat.clues);
                 return (
-                  <div key={cat.category} onClick={() => selectCategory(cat.category)} style={{ display:"flex", alignItems:"center", gap:10, padding:"14px 16px", borderRadius:12, marginBottom:6, background: selected === cat.category ? "rgba(255,221,117,0.12)" : "rgba(255,255,255,0.03)", border: selected === cat.category ? "1px solid rgba(255,221,117,0.35)" : "1px solid rgba(255,255,255,0.07)", cursor:"pointer" }}>
+                  <div key={cat.category} onClick={() => selectCategory(cat.category)}
+                    style={{ display:"flex", alignItems:"center", gap:10, padding:"14px 16px", borderRadius:12, marginBottom:6, background: selected === cat.category ? "rgba(255,221,117,0.12)" : "rgba(255,255,255,0.03)", border: selected === cat.category ? "1px solid rgba(255,221,117,0.35)" : "1px solid rgba(255,255,255,0.07)", cursor:"pointer" }}>
                     <div style={{ flex:1 }}>
                       <div style={{ fontWeight:700, fontSize:15, color: selected === cat.category ? "#ffdd75" : "#f6f7ff" }}>{cat.category}</div>
                       <div style={{ display:"flex", gap:8, marginTop:4, flexWrap:"wrap" }}>
@@ -239,66 +323,40 @@ export default function EditorScreen() {
           </div>
         )}
 
-        {/* ── Clue list ── */}
-        {!showCatList && selected && (
+        {/* ════ CLUES TAB ════ */}
+        {activeTab === TAB_CLUES && selected && (
           <div style={{ flex:1, display:"flex", flexDirection:"column", overflow:"hidden" }}>
-
-            {/* Category header — with inline name editing */}
             <div style={{ padding:"12px 16px", borderBottom:"1px solid rgba(255,255,255,0.08)", background:"rgba(0,0,0,0.15)", flexShrink:0 }}>
               <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:8 }}>
                 <div style={{ flex:1 }}>
-
-                  {/* ── Name edit mode ── */}
                   {editingCatName ? (
                     <div style={{ display:"flex", gap:8, alignItems:"center" }}>
-                      <input
-                        ref={catNameInputRef}
-                        value={catNameDraft}
-                        onChange={(e) => setCatNameDraft(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") handleRenameCategory();
-                          if (e.key === "Escape") setEditingCatName(false);
-                        }}
+                      <input ref={catNameInputRef} value={catNameDraft} onChange={(e) => setCatNameDraft(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === "Enter") handleRenameCategory(); if (e.key === "Escape") setEditingCatName(false); }}
                         maxLength={60}
-                        style={{
-                          flex:1, padding:"8px 12px", fontSize:16, fontWeight:900,
-                          borderRadius:8, border:"2px solid rgba(255,221,117,0.5)",
-                          background:"rgba(255,221,117,0.08)", color:"#ffdd75",
-                          outline:"none",
-                        }}
-                      />
-                      <button
-                        onClick={handleRenameCategory}
-                        disabled={!catNameDraft.trim()}
+                        style={{ flex:1, padding:"8px 12px", fontSize:16, fontWeight:900, borderRadius:8, border:"2px solid rgba(255,221,117,0.5)", background:"rgba(255,221,117,0.08)", color:"#ffdd75", outline:"none" }} />
+                      <button onClick={handleRenameCategory} disabled={!catNameDraft.trim()}
                         style={{ padding:"8px 14px", borderRadius:8, fontSize:13, fontWeight:900, border:"none", background: catNameDraft.trim() ? "#ffdd75" : "rgba(255,255,255,0.08)", color: catNameDraft.trim() ? "#000" : "rgba(255,255,255,0.3)", cursor: catNameDraft.trim() ? "pointer" : "not-allowed", flexShrink:0 }}>
                         Save
                       </button>
-                      <button
-                        onClick={() => setEditingCatName(false)}
+                      <button onClick={() => setEditingCatName(false)}
                         style={{ padding:"8px 12px", borderRadius:8, fontSize:13, fontWeight:700, border:"1px solid rgba(255,255,255,0.12)", background:"transparent", color:"rgba(246,247,255,0.5)", cursor:"pointer", flexShrink:0 }}>
                         Cancel
                       </button>
                     </div>
                   ) : (
-                    /* ── Name display mode — tap to edit ── */
                     <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                       <div style={{ fontWeight:900, fontSize:17, color:"#ffdd75" }}>{selected}</div>
-                      <button
-                        onClick={startEditingCatName}
+                      <button onClick={startEditingCatName}
                         style={{ padding:"4px 10px", borderRadius:6, fontSize:12, fontWeight:700, border:"1px solid rgba(255,221,117,0.25)", background:"rgba(255,221,117,0.07)", color:"rgba(255,221,117,0.6)", cursor:"pointer", flexShrink:0 }}>
                         Rename
                       </button>
                     </div>
                   )}
-
-                  <div style={{ fontSize:12, color:"rgba(246,247,255,0.4)", marginTop:4 }}>
-                    {selectedCat?.clues.length ?? 0} clues
-                  </div>
+                  <div style={{ fontSize:12, color:"rgba(246,247,255,0.4)", marginTop:4 }}>{selectedCat?.clues.length ?? 0} clues</div>
                 </div>
                 {savedFlash && <div style={{ fontSize:13, fontWeight:700, color:"#21c55d", flexShrink:0 }}>Saved ✓</div>}
               </div>
-
-              {/* Difficulty legend */}
               <div style={{ display:"flex", gap:10, flexWrap:"wrap" }}>
                 {[["easy","#86efac","rows 1-2"],["medium","#fde68a","rows 3-4"],["hard","#fca5a5","row 5"]].map(([d,col,rows]) => (
                   <div key={d} style={{ display:"flex", alignItems:"center", gap:4 }}>
@@ -404,9 +462,176 @@ export default function EditorScreen() {
             </div>
           </div>
         )}
+
+        {/* ════ THEMES TAB ════ */}
+        {activeTab === TAB_THEMES && (
+          <div style={{ flex:1, display:"flex", flexDirection:"column", overflow:"hidden" }}>
+
+            {/* ── Editing a theme ── */}
+            {editingTheme ? (
+              <div style={{ flex:1, display:"flex", flexDirection:"column", overflow:"hidden" }}>
+
+                {/* Theme editor header */}
+                <div style={{ padding:"12px 16px", borderBottom:"1px solid rgba(255,255,255,0.08)", background:"rgba(0,0,0,0.15)", flexShrink:0 }}>
+                  <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:8 }}>
+                    <div style={{ flex:1 }}>
+                      {editingThemeName ? (
+                        <div style={{ display:"flex", gap:8, alignItems:"center" }}>
+                          <input autoFocus value={themeNameDraft} onChange={(e) => setThemeNameDraft(e.target.value)}
+                            onKeyDown={(e) => { if (e.key === "Enter") handleRenameTheme(); if (e.key === "Escape") setEditingThemeName(false); }}
+                            maxLength={50}
+                            style={{ flex:1, padding:"8px 12px", fontSize:16, fontWeight:900, borderRadius:8, border:"2px solid rgba(99,179,237,0.5)", background:"rgba(99,179,237,0.08)", color:"#90cdf4", outline:"none" }} />
+                          <button onClick={handleRenameTheme} disabled={!themeNameDraft.trim()}
+                            style={{ padding:"8px 14px", borderRadius:8, fontSize:13, fontWeight:900, border:"none", background: themeNameDraft.trim() ? "#90cdf4" : "rgba(255,255,255,0.08)", color: themeNameDraft.trim() ? "#000" : "rgba(255,255,255,0.3)", cursor: themeNameDraft.trim() ? "pointer" : "not-allowed", flexShrink:0 }}>
+                            Save
+                          </button>
+                          <button onClick={() => setEditingThemeName(false)}
+                            style={{ padding:"8px 12px", borderRadius:8, fontSize:13, fontWeight:700, border:"1px solid rgba(255,255,255,0.12)", background:"transparent", color:"rgba(246,247,255,0.5)", cursor:"pointer", flexShrink:0 }}>
+                            Cancel
+                          </button>
+                        </div>
+                      ) : (
+                        <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                          <div style={{ fontWeight:900, fontSize:17, color:"#90cdf4" }}>{editingTheme.name}</div>
+                          <button onClick={() => { setThemeNameDraft(editingTheme.name); setEditingThemeName(true); }}
+                            style={{ padding:"4px 10px", borderRadius:6, fontSize:12, fontWeight:700, border:"1px solid rgba(99,179,237,0.25)", background:"rgba(99,179,237,0.07)", color:"rgba(99,179,237,0.6)", cursor:"pointer", flexShrink:0 }}>
+                            Rename
+                          </button>
+                        </div>
+                      )}
+                      <div style={{ fontSize:12, color:"rgba(246,247,255,0.4)", marginTop:4 }}>
+                        {editingTheme.categories.length} / 6 categories selected
+                      </div>
+                    </div>
+                    {themeSavedFlash && <div style={{ fontSize:13, fontWeight:700, color:"#21c55d", flexShrink:0 }}>Saved ✓</div>}
+                  </div>
+
+                  {/* Selected categories pills */}
+                  {editingTheme.categories.length > 0 && (
+                    <div style={{ display:"flex", gap:6, flexWrap:"wrap", marginBottom:8 }}>
+                      {editingTheme.categories.map((c, i) => (
+                        <div key={c} style={{ display:"flex", alignItems:"center", gap:4, padding:"4px 10px", borderRadius:999, background:"rgba(99,179,237,0.15)", border:"1px solid rgba(99,179,237,0.35)", fontSize:12, fontWeight:700, color:"#90cdf4" }}>
+                          <span style={{ opacity:0.5, marginRight:2 }}>{i+1}</span>
+                          {c}
+                          <button onClick={() => toggleThemeCat(c)} style={{ background:"none", border:"none", color:"rgba(99,179,237,0.6)", cursor:"pointer", padding:"0 0 0 4px", fontSize:14, lineHeight:1 }}>×</button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  <div style={{ display:"flex", gap:8 }}>
+                    <button
+                      onClick={handleSaveTheme}
+                      disabled={editingTheme.categories.length !== 6}
+                      style={{ flex:1, padding:"11px", borderRadius:10, fontSize:14, fontWeight:900, border:"none", background: editingTheme.categories.length === 6 ? "#90cdf4" : "rgba(255,255,255,0.08)", color: editingTheme.categories.length === 6 ? "#000" : "rgba(255,255,255,0.3)", cursor: editingTheme.categories.length === 6 ? "pointer" : "not-allowed" }}>
+                      {editingTheme.categories.length === 6 ? "Save Theme" : `Need ${6 - editingTheme.categories.length} more`}
+                    </button>
+                    <button onClick={() => setEditingTheme(null)}
+                      style={{ padding:"11px 16px", borderRadius:10, fontSize:14, fontWeight:700, border:"1px solid rgba(255,255,255,0.12)", background:"transparent", color:"rgba(246,247,255,0.5)", cursor:"pointer" }}>
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+
+                {/* Category picker */}
+                <div style={{ padding:"10px 12px", borderBottom:"1px solid rgba(255,255,255,0.06)", flexShrink:0 }}>
+                  <input value={themeCatSearch} onChange={(e) => setThemeCatSearch(e.target.value)} placeholder="Search categories to add..."
+                    style={{ width:"100%", padding:"10px 14px", fontSize:14, borderRadius:10, border:"1px solid rgba(255,255,255,0.15)", background:"rgba(255,255,255,0.07)", color:"#f6f7ff", outline:"none", boxSizing:"border-box" }} />
+                </div>
+                <div style={{ flex:1, overflowY:"auto", padding:"8px 10px" }}>
+                  {categories
+                    .filter((c) => c.category.toLowerCase().includes(themeCatSearch.toLowerCase()))
+                    .map((cat) => {
+                      const isSelected = editingTheme.categories.includes(cat.category);
+                      const isFull     = editingTheme.categories.length >= 6 && !isSelected;
+                      return (
+                        <div key={cat.category} onClick={() => !isFull && toggleThemeCat(cat.category)}
+                          style={{ display:"flex", alignItems:"center", gap:10, padding:"12px 16px", borderRadius:12, marginBottom:6, background: isSelected ? "rgba(99,179,237,0.12)" : "rgba(255,255,255,0.03)", border: isSelected ? "1px solid rgba(99,179,237,0.4)" : "1px solid rgba(255,255,255,0.07)", cursor: isFull ? "not-allowed" : "pointer", opacity: isFull ? 0.4 : 1 }}>
+                          <div style={{ width:20, height:20, borderRadius:6, border: isSelected ? "2px solid #90cdf4" : "2px solid rgba(255,255,255,0.2)", background: isSelected ? "#90cdf4" : "transparent", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0, fontSize:12, color:"#000", fontWeight:900 }}>
+                            {isSelected && "✓"}
+                          </div>
+                          <div style={{ flex:1 }}>
+                            <div style={{ fontWeight:700, fontSize:14, color: isSelected ? "#90cdf4" : "#f6f7ff" }}>{cat.category}</div>
+                            <div style={{ fontSize:11, color:"rgba(246,247,255,0.35)", marginTop:2 }}>{cat.clues.length} clues</div>
+                          </div>
+                          {isSelected && (
+                            <div style={{ fontSize:11, fontWeight:900, color:"#90cdf4", background:"rgba(99,179,237,0.15)", padding:"2px 8px", borderRadius:999 }}>
+                              #{editingTheme.categories.indexOf(cat.category) + 1}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })
+                  }
+                  <div style={{ height:40 }} />
+                </div>
+              </div>
+
+            ) : (
+              /* ── Theme list ── */
+              <div style={{ flex:1, display:"flex", flexDirection:"column", overflow:"hidden" }}>
+                <div style={{ padding:"12px 14px", borderBottom:"1px solid rgba(255,255,255,0.06)", flexShrink:0 }}>
+                  <input value={themeSearch} onChange={(e) => setThemeSearch(e.target.value)} placeholder="Search themes..."
+                    style={{ width:"100%", padding:"10px 14px", fontSize:15, borderRadius:10, border:"1px solid rgba(255,255,255,0.15)", background:"rgba(255,255,255,0.07)", color:"#f6f7ff", outline:"none", boxSizing:"border-box", marginBottom:10 }} />
+                  {showNewTheme ? (
+                    <div style={{ display:"flex", gap:8 }}>
+                      <input autoFocus value={newThemeName} onChange={(e) => setNewThemeName(e.target.value)} onKeyDown={(e) => e.key === "Enter" && handleCreateTheme()} placeholder="Theme name..." maxLength={50}
+                        style={{ flex:1, padding:"10px 14px", fontSize:15, borderRadius:10, border:"1px solid rgba(99,179,237,0.3)", background:"rgba(99,179,237,0.07)", color:"#f6f7ff", outline:"none" }} />
+                      <button onClick={handleCreateTheme} disabled={!newThemeName.trim()}
+                        style={{ padding:"10px 18px", borderRadius:10, fontSize:15, fontWeight:900, border:"none", background: newThemeName.trim() ? "#90cdf4" : "rgba(255,255,255,0.08)", color: newThemeName.trim() ? "#000" : "rgba(255,255,255,0.3)", cursor: newThemeName.trim() ? "pointer" : "not-allowed" }}>
+                        Create
+                      </button>
+                      <button onClick={() => { setShowNewTheme(false); setNewThemeName(""); }}
+                        style={{ padding:"10px 14px", borderRadius:10, fontSize:15, border:"1px solid rgba(255,255,255,0.12)", background:"transparent", color:"rgba(246,247,255,0.5)", cursor:"pointer" }}>
+                        X
+                      </button>
+                    </div>
+                  ) : (
+                    <button onClick={() => setShowNewTheme(true)}
+                      style={{ width:"100%", padding:"13px", borderRadius:10, fontSize:15, fontWeight:700, border:"1px solid rgba(99,179,237,0.3)", background:"rgba(99,179,237,0.08)", color:"#90cdf4", cursor:"pointer" }}>
+                      + New Theme
+                    </button>
+                  )}
+                </div>
+
+                <div style={{ flex:1, overflowY:"auto", padding:"8px 10px" }}>
+                  {filteredThemes.length === 0 && (
+                    <div style={{ textAlign:"center", color:"rgba(246,247,255,0.3)", fontSize:14, padding:"40px 0" }}>
+                      No themes yet — tap + New Theme to create one.
+                    </div>
+                  )}
+                  {filteredThemes.map((name) => (
+                    <div key={name} style={{ padding:"14px 16px", borderRadius:12, marginBottom:6, background:"rgba(255,255,255,0.03)", border:"1px solid rgba(255,255,255,0.07)" }}>
+                      <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:8 }}>
+                        <div style={{ fontWeight:700, fontSize:15, color:"#90cdf4", flex:1 }}>{name}</div>
+                        <button
+                          onClick={() => { setEditingTheme({ name, categories: [...themes[name]] }); setThemeCatSearch(""); setEditingThemeName(false); }}
+                          style={{ padding:"6px 14px", borderRadius:8, fontSize:13, fontWeight:700, border:"1px solid rgba(99,179,237,0.3)", background:"rgba(99,179,237,0.10)", color:"#90cdf4", cursor:"pointer", flexShrink:0 }}>
+                          Edit
+                        </button>
+                        <button onClick={() => setConfirmDelTheme(name)}
+                          style={{ width:38, height:38, borderRadius:8, border:"1px solid rgba(239,68,68,0.2)", background:"rgba(239,68,68,0.07)", color:"rgba(239,68,68,0.6)", cursor:"pointer", fontSize:16, flexShrink:0 }}>
+                          X
+                        </button>
+                      </div>
+                      <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
+                        {themes[name].map((cat, i) => (
+                          <div key={cat} style={{ fontSize:11, padding:"3px 8px", borderRadius:999, background:"rgba(99,179,237,0.10)", border:"1px solid rgba(99,179,237,0.2)", color:"rgba(99,179,237,0.7)", fontWeight:600 }}>
+                            {i+1}. {cat}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                  <div style={{ height:40 }} />
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
-      {/* Confirm delete modal */}
+      {/* Confirm delete category modal */}
       {confirmDelete && (
         <div style={{ position:"fixed", inset:0, zIndex:999, background:"rgba(0,0,0,0.8)", display:"flex", alignItems:"center", justifyContent:"center", padding:24 }}>
           <div style={{ background:"#090f3a", border:"1px solid rgba(255,255,255,0.15)", borderRadius:20, padding:28, width:"100%", maxWidth:400, textAlign:"center" }}>
@@ -420,6 +645,28 @@ export default function EditorScreen() {
                 Cancel
               </button>
               <button onClick={() => handleDeleteCategory(confirmDelete)}
+                style={{ padding:"14px", borderRadius:12, fontSize:15, fontWeight:900, border:"1px solid rgba(239,68,68,0.4)", background:"rgba(239,68,68,0.18)", color:"#fca5a5", cursor:"pointer" }}>
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Confirm delete theme modal */}
+      {confirmDelTheme && (
+        <div style={{ position:"fixed", inset:0, zIndex:999, background:"rgba(0,0,0,0.8)", display:"flex", alignItems:"center", justifyContent:"center", padding:24 }}>
+          <div style={{ background:"#090f3a", border:"1px solid rgba(255,255,255,0.15)", borderRadius:20, padding:28, width:"100%", maxWidth:400, textAlign:"center" }}>
+            <div style={{ fontSize:20, fontWeight:900, color:"#fca5a5", marginBottom:10 }}>Delete Theme?</div>
+            <div style={{ fontSize:14, color:"rgba(246,247,255,0.6)", marginBottom:24, lineHeight:1.5 }}>
+              <strong style={{ color:"#fff" }}>"{confirmDelTheme}"</strong> will be permanently deleted.
+            </div>
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
+              <button onClick={() => setConfirmDelTheme(null)}
+                style={{ padding:"14px", borderRadius:12, fontSize:15, fontWeight:700, border:"1px solid rgba(255,255,255,0.15)", background:"rgba(255,255,255,0.07)", color:"#f6f7ff", cursor:"pointer" }}>
+                Cancel
+              </button>
+              <button onClick={() => handleDeleteTheme(confirmDelTheme)}
                 style={{ padding:"14px", borderRadius:12, fontSize:15, fontWeight:900, border:"1px solid rgba(239,68,68,0.4)", background:"rgba(239,68,68,0.18)", color:"#fca5a5", cursor:"pointer" }}>
                 Delete
               </button>
