@@ -329,10 +329,19 @@ io.on("connection", (socket) => {
   });
 
   socket.on("host:assignTeam", ({ playerId, teamId }) => {
-    if (teamId && !state.teams.some((t) => t.id === teamId)) return;
-    state = { ...state, players: state.players.map((p) => p.id === playerId ? { ...p, teamId: teamId || null } : p) };
-    emitState();
-  });
+  if (teamId && !state.teams.some((t) => t.id === teamId)) return;
+  state = { ...state, players: state.players.map((p) => p.id === playerId ? { ...p, teamId: teamId || null } : p) };
+  // If no one has control yet and this player is being assigned a team, give them control
+  if (teamId && !state.controlPlayerId) {
+    state = { ...state, controlPlayerId: playerId, controlTeamId: teamId };
+  }
+  // If control player is being unassigned, clear control
+  if (!teamId && state.controlPlayerId === playerId) {
+    const next = state.players.find((p) => p.id !== playerId && p.teamId);
+    state = { ...state, controlPlayerId: next?.id ?? null, controlTeamId: next?.teamId ?? null };
+  }
+  emitState();
+});
 
   // ─── Game flow ────────────────────────────────────────────────────────────
   socket.on("host:startJaypardy", async () => {

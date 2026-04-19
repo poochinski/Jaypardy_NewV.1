@@ -10,7 +10,6 @@ export default function HostScreen({ state }) {
   const [showFinalSetup,   setShowFinalSetup]   = useState(false);
   const [allCategories,    setAllCategories]    = useState([]);
   const [pauseMenuOpen,    setPauseMenuOpen]    = useState(false);
-  const [showSetControl,   setShowSetControl]   = useState(false); // ── NEW
 
   useEffect(() => {
     const onCats = (cats) => setAllCategories(cats);
@@ -83,7 +82,7 @@ export default function HostScreen({ state }) {
   const paused       = state?.paused ?? false;
   const pauseMessage = state?.pauseMessage ?? "";
 
-  // ── NEW: board control ────────────────────────────────────────────────────
+  // ── Board control ─────────────────────────────────────────────────────────
   const controlPlayerId = state?.controlPlayerId ?? null;
   const controlTeamId   = state?.controlTeamId   ?? null;
   const controlPlayer   = players.find((p) => p.id === controlPlayerId) ?? null;
@@ -290,7 +289,6 @@ export default function HostScreen({ state }) {
         <div style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:16, padding:40, textAlign:"center" }}>
           <div style={{ fontSize:52, fontWeight:900, color:"#ffdd75", letterSpacing:-1 }}>DAILY DOUBLE</div>
           <div style={{ fontSize:18, color:"rgba(246,247,255,0.55)" }}>{clue?.category} — ${clue?.value}</div>
-          {/* Show who is wagering */}
           {controlPlayer && (
             <div style={{ display:"flex", alignItems:"center", gap:10, padding:"10px 18px", borderRadius:12, background:`${controlTeam?.color ?? "#ffdd75"}18`, border:`1px solid ${controlTeam?.color ?? "#ffdd75"}55` }}>
               <span style={{ fontSize:20 }}>{controlPlayer.emoji}</span>
@@ -435,36 +433,18 @@ export default function HostScreen({ state }) {
         {/* Right sidebar */}
         <aside className="jp-sideZone">
 
-          {/* ── NEW: Board Control panel ── */}
-          {phase !== "lobby" && phase !== "gameOver" && !isFinal && (
-            <div className="jp-panel" style={{ padding:"12px 14px" }}>
-              <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom: controlPlayer ? 8 : 0 }}>
-                <div className="jp-panelTitle" style={{ marginBottom:0 }}>Board Control</div>
-                <button
-                  onClick={() => setShowSetControl(true)}
-                  style={{ fontSize:11, fontWeight:700, padding:"4px 10px", borderRadius:6, border:"1px solid rgba(255,255,255,0.15)", background:"rgba(255,255,255,0.06)", color:"rgba(246,247,255,0.6)", cursor:"pointer" }}>
-                  Override
-                </button>
-              </div>
-              {controlPlayer ? (
-                <div style={{ display:"flex", alignItems:"center", gap:10, padding:"8px 10px", borderRadius:10, background:`${controlTeam?.color ?? "#ffdd75"}15`, border:`1px solid ${controlTeam?.color ?? "#ffdd75"}40` }}>
-                  <span style={{ fontSize:22 }}>{controlPlayer.emoji}</span>
-                  <div>
-                    <div style={{ fontWeight:900, fontSize:14, color: controlTeam?.color ?? "#ffdd75" }}>{controlPlayer.name}</div>
-                    <div style={{ fontSize:11, color:"rgba(246,247,255,0.45)", marginTop:1 }}>
-                      {controlTeam?.name ?? "No team"} · choosing next clue
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                <div style={{ fontSize:13, color:"rgba(246,247,255,0.35)" }}>No player assigned yet</div>
-              )}
-            </div>
-          )}
-
           {/* Players */}
           <div className="jp-panel">
-            <div className="jp-panelTitle">Players</div>
+            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:10 }}>
+              <div className="jp-panelTitle" style={{ marginBottom:0 }}>Players</div>
+              {/* Hint text — only show during active game */}
+              {phase !== "lobby" && assignedPlayers.length > 0 && (
+                <div style={{ fontSize:10, color:"rgba(246,247,255,0.35)", fontStyle:"italic" }}>
+                  Tap to set control
+                </div>
+              )}
+            </div>
+
             {unassignedPlayers.length > 0 && (
               <>
                 <div style={{ fontSize:10, fontWeight:700, color:"#ef4444", textTransform:"uppercase", letterSpacing:0.6, marginBottom:6 }}>Needs a team</div>
@@ -483,14 +463,30 @@ export default function HostScreen({ state }) {
                 )}
               </>
             )}
+
             {assignedPlayers.length === 0 && unassignedPlayers.length === 0 && (
               <div className="jp-muted">No players yet.</div>
             )}
+
             {assignedPlayers.map((p) => {
               const t = teamById[p.teamId];
               const isControl = p.id === controlPlayerId;
+              const gameActive = phase !== "lobby" && phase !== "gameOver" && !isFinal;
               return (
-                <div key={p.id} style={{ display:"flex", alignItems:"center", gap:8, padding:"7px 8px", borderRadius:9, border:`1px solid ${isControl ? (t?.color ?? "#ffdd75") + "88" : t?.color ?? "rgba(255,255,255,0.08)" + "33"}`, background: isControl ? `${t?.color ?? "#ffdd75"}10` : "rgba(255,255,255,0.04)", marginBottom:5 }}>
+                <div
+                  key={p.id}
+                  onClick={() => gameActive && socket.emit("host:setControl", { playerId: p.id })}
+                  style={{
+                    display:"flex", alignItems:"center", gap:8,
+                    padding:"7px 8px", borderRadius:9,
+                    border:`1px solid ${isControl ? (t?.color ?? "#ffdd75") + "88" : (t?.color ?? "rgba(255,255,255,0.08)") + "33"}`,
+                    background: isControl ? `${t?.color ?? "#ffdd75"}10` : "rgba(255,255,255,0.04)",
+                    marginBottom:5,
+                    cursor: gameActive ? "pointer" : "default",
+                    transition: "background 0.1s, border 0.1s",
+                  }}
+                  title={gameActive ? `Tap to give ${p.name} board control` : ""}
+                >
                   {t && <div style={{ width:8, height:8, borderRadius:"50%", background:t.color, flexShrink:0 }} />}
                   <span style={{ fontSize:16 }}>{p.emoji}</span>
                   <span style={{ fontWeight:700, fontSize:12, flex:1 }}>{p.name}</span>
@@ -500,9 +496,12 @@ export default function HostScreen({ state }) {
                   {buzz.locked && buzz.playerId === p.id && (
                     <span style={{ fontSize:10, fontWeight:900, color:"#ffdd75", background:"rgba(255,221,117,0.15)", border:"1px solid rgba(255,221,117,0.3)", padding:"2px 6px", borderRadius:999 }}>BUZZED</span>
                   )}
-                  <select className="jp-teamSelect" value={p.teamId ?? ""} onChange={(e) => socket.emit("host:assignTeam", { playerId: p.id, teamId: e.target.value })}>
-                    {teams.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
-                  </select>
+                  {/* Stop click propagation on the team select so it doesn't trigger control transfer */}
+                  <div onClick={(e) => e.stopPropagation()}>
+                    <select className="jp-teamSelect" value={p.teamId ?? ""} onChange={(e) => socket.emit("host:assignTeam", { playerId: p.id, teamId: e.target.value })}>
+                      {teams.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+                    </select>
+                  </div>
                 </div>
               );
             })}
@@ -631,51 +630,6 @@ export default function HostScreen({ state }) {
 
         </aside>
       </div>
-
-      {/* ── NEW: Set Control override modal ── */}
-      {showSetControl && (
-        <div style={{ position:"fixed", inset:0, zIndex:999, background:"rgba(0,0,0,0.8)", display:"flex", alignItems:"center", justifyContent:"center", padding:24 }}>
-          <div style={{ background:"#090f3a", border:"1px solid rgba(255,255,255,0.15)", borderRadius:20, padding:28, width:"100%", maxWidth:400 }}>
-            <div style={{ fontSize:20, fontWeight:900, color:"#ffdd75", marginBottom:6, textAlign:"center" }}>Override Board Control</div>
-            <div style={{ fontSize:13, color:"rgba(246,247,255,0.45)", textAlign:"center", marginBottom:20 }}>
-              Tap a player to give them control of the board
-            </div>
-            <div style={{ display:"flex", flexDirection:"column", gap:8, marginBottom:20 }}>
-              {assignedPlayers.length === 0 ? (
-                <div style={{ textAlign:"center", color:"rgba(246,247,255,0.35)", fontSize:14, padding:16 }}>No assigned players</div>
-              ) : (
-                assignedPlayers.map((p) => {
-                  const t = teamById[p.teamId];
-                  const isControl = p.id === controlPlayerId;
-                  return (
-                    <button
-                      key={p.id}
-                      onClick={() => { socket.emit("host:setControl", { playerId: p.id }); setShowSetControl(false); }}
-                      style={{
-                        display:"flex", alignItems:"center", gap:12,
-                        padding:"12px 16px", borderRadius:12, border:"none", cursor:"pointer",
-                        background: isControl ? `${t?.color ?? "#ffdd75"}25` : "rgba(255,255,255,0.05)",
-                        outline: isControl ? `2px solid ${t?.color ?? "#ffdd75"}` : "none",
-                      }}
-                    >
-                      {t && <div style={{ width:10, height:10, borderRadius:"50%", background:t.color, flexShrink:0 }} />}
-                      <span style={{ fontSize:20 }}>{p.emoji}</span>
-                      <div style={{ flex:1, textAlign:"left" }}>
-                        <div style={{ fontWeight:900, fontSize:14, color: t?.color ?? "#ffdd75" }}>{p.name}</div>
-                        <div style={{ fontSize:11, color:"rgba(246,247,255,0.45)" }}>{t?.name ?? ""}</div>
-                      </div>
-                      {isControl && (
-                        <span style={{ fontSize:11, fontWeight:900, color: t?.color ?? "#ffdd75" }}>Current</span>
-                      )}
-                    </button>
-                  );
-                })
-              )}
-            </div>
-            <button className="jp-btn" style={{ width:"100%" }} onClick={() => setShowSetControl(false)}>Cancel</button>
-          </div>
-        </div>
-      )}
 
       {/* Pause menu modal */}
       {pauseMenuOpen && (
