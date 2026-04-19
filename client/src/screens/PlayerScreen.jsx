@@ -115,7 +115,7 @@ export default function PlayerScreen({ state }) {
   if (!joined) {
     return (
       <div style={{
-        minHeight: "100vh", paddingTop: "calc(env(safe-area-inset-top, 0px) + 14px) 18px 14px 18px", background: "#050a2a", color: "#f6f7ff",
+        minHeight: "100vh", paddingTop: "env(safe-area-inset-top, 0px)", background: "#050a2a", color: "#f6f7ff",
         fontFamily: "ui-sans-serif, system-ui, sans-serif",
         display: "flex", flexDirection: "column", padding: "24px 20px",
       }}>
