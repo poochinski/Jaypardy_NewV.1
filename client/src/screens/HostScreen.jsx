@@ -9,9 +9,9 @@ export default function HostScreen({ state }) {
   const [swapMenu,         setSwapMenu]         = useState(null);
   const [showFinalSetup,   setShowFinalSetup]   = useState(false);
   const [allCategories,    setAllCategories]    = useState([]);
-  const [pauseMenuOpen,    setPauseMenuOpen]    = useState(false);   // ── NEW
+  const [pauseMenuOpen,    setPauseMenuOpen]    = useState(false);
+  const [showSetControl,   setShowSetControl]   = useState(false); // ── NEW
 
-  // Pull live category list from server
   useEffect(() => {
     const onCats = (cats) => setAllCategories(cats);
     socket.on("categories:update", onCats);
@@ -80,8 +80,14 @@ export default function HostScreen({ state }) {
   const board        = state?.board ?? null;
   const clue         = state?.currentClue ?? null;
   const phase        = state?.phase ?? "lobby";
-  const paused       = state?.paused ?? false;       // ── NEW
-  const pauseMessage = state?.pauseMessage ?? "";    // ── NEW
+  const paused       = state?.paused ?? false;
+  const pauseMessage = state?.pauseMessage ?? "";
+
+  // ── NEW: board control ────────────────────────────────────────────────────
+  const controlPlayerId = state?.controlPlayerId ?? null;
+  const controlTeamId   = state?.controlTeamId   ?? null;
+  const controlPlayer   = players.find((p) => p.id === controlPlayerId) ?? null;
+  const controlTeam     = teams.find((t) => t.id === controlTeamId) ?? null;
 
   const boardCategories = useMemo(() =>
     board?.columns.map((c) => c.title) ?? [],
@@ -91,7 +97,6 @@ export default function HostScreen({ state }) {
     (cat) => !boardCategories.includes(cat)
   );
 
-  // ── Changed from right-click to tap button ────────────────────────────────
   const doSwap = (newCategory) => {
     if (!swapMenu) return;
     socket.emit("host:swapCategory", { colIndex: swapMenu.colIndex, newCategory });
@@ -130,7 +135,6 @@ export default function HostScreen({ state }) {
   const pickingDD  = state?.pickingDD ?? false;
   const ddPicked   = state?.ddPicked ?? 0;
   const ddNeeded   = board?.round === 2 ? 2 : 1;
-  const canPickDD  = phase === "board" && !!board;
 
   const gameLog = state?.gameLog ?? [];
 
@@ -286,6 +290,16 @@ export default function HostScreen({ state }) {
         <div style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:16, padding:40, textAlign:"center" }}>
           <div style={{ fontSize:52, fontWeight:900, color:"#ffdd75", letterSpacing:-1 }}>DAILY DOUBLE</div>
           <div style={{ fontSize:18, color:"rgba(246,247,255,0.55)" }}>{clue?.category} — ${clue?.value}</div>
+          {/* Show who is wagering */}
+          {controlPlayer && (
+            <div style={{ display:"flex", alignItems:"center", gap:10, padding:"10px 18px", borderRadius:12, background:`${controlTeam?.color ?? "#ffdd75"}18`, border:`1px solid ${controlTeam?.color ?? "#ffdd75"}55` }}>
+              <span style={{ fontSize:20 }}>{controlPlayer.emoji}</span>
+              <div>
+                <div style={{ fontWeight:900, fontSize:14, color: controlTeam?.color ?? "#ffdd75" }}>{controlPlayer.name}</div>
+                <div style={{ fontSize:11, color:"rgba(246,247,255,0.45)" }}>entering wager</div>
+              </div>
+            </div>
+          )}
           <div style={{ fontSize:15, color:"rgba(246,247,255,0.4)", marginTop:8 }}>Waiting for player to submit wager…</div>
           <button className="jp-btn" style={{ marginTop:16 }} onClick={() => socket.emit("host:mark", { result: "skip" })}>Skip Daily Double</button>
         </div>
@@ -357,7 +371,6 @@ export default function HostScreen({ state }) {
           <div className="jp-boardGrid">
             {board.columns.map((col, colIndex) => (
               <div key={col.id} className="jp-col">
-                {/* ── Tap to swap category header ── */}
                 <button
                   className="jp-cat"
                   onClick={() => { if (phase === "board") { setSwapMenu({ colIndex }); setSwapSearch(""); } }}
@@ -422,6 +435,33 @@ export default function HostScreen({ state }) {
         {/* Right sidebar */}
         <aside className="jp-sideZone">
 
+          {/* ── NEW: Board Control panel ── */}
+          {phase !== "lobby" && phase !== "gameOver" && !isFinal && (
+            <div className="jp-panel" style={{ padding:"12px 14px" }}>
+              <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom: controlPlayer ? 8 : 0 }}>
+                <div className="jp-panelTitle" style={{ marginBottom:0 }}>Board Control</div>
+                <button
+                  onClick={() => setShowSetControl(true)}
+                  style={{ fontSize:11, fontWeight:700, padding:"4px 10px", borderRadius:6, border:"1px solid rgba(255,255,255,0.15)", background:"rgba(255,255,255,0.06)", color:"rgba(246,247,255,0.6)", cursor:"pointer" }}>
+                  Override
+                </button>
+              </div>
+              {controlPlayer ? (
+                <div style={{ display:"flex", alignItems:"center", gap:10, padding:"8px 10px", borderRadius:10, background:`${controlTeam?.color ?? "#ffdd75"}15`, border:`1px solid ${controlTeam?.color ?? "#ffdd75"}40` }}>
+                  <span style={{ fontSize:22 }}>{controlPlayer.emoji}</span>
+                  <div>
+                    <div style={{ fontWeight:900, fontSize:14, color: controlTeam?.color ?? "#ffdd75" }}>{controlPlayer.name}</div>
+                    <div style={{ fontSize:11, color:"rgba(246,247,255,0.45)", marginTop:1 }}>
+                      {controlTeam?.name ?? "No team"} · choosing next clue
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div style={{ fontSize:13, color:"rgba(246,247,255,0.35)" }}>No player assigned yet</div>
+              )}
+            </div>
+          )}
+
           {/* Players */}
           <div className="jp-panel">
             <div className="jp-panelTitle">Players</div>
@@ -448,11 +488,15 @@ export default function HostScreen({ state }) {
             )}
             {assignedPlayers.map((p) => {
               const t = teamById[p.teamId];
+              const isControl = p.id === controlPlayerId;
               return (
-                <div key={p.id} style={{ display:"flex", alignItems:"center", gap:8, padding:"7px 8px", borderRadius:9, border:`1px solid ${t?.color ?? "rgba(255,255,255,0.08)"}33`, background:"rgba(255,255,255,0.04)", marginBottom:5 }}>
+                <div key={p.id} style={{ display:"flex", alignItems:"center", gap:8, padding:"7px 8px", borderRadius:9, border:`1px solid ${isControl ? (t?.color ?? "#ffdd75") + "88" : t?.color ?? "rgba(255,255,255,0.08)" + "33"}`, background: isControl ? `${t?.color ?? "#ffdd75"}10` : "rgba(255,255,255,0.04)", marginBottom:5 }}>
                   {t && <div style={{ width:8, height:8, borderRadius:"50%", background:t.color, flexShrink:0 }} />}
                   <span style={{ fontSize:16 }}>{p.emoji}</span>
                   <span style={{ fontWeight:700, fontSize:12, flex:1 }}>{p.name}</span>
+                  {isControl && (
+                    <span style={{ fontSize:10, fontWeight:900, color: t?.color ?? "#ffdd75", background:`${t?.color ?? "#ffdd75"}20`, border:`1px solid ${t?.color ?? "#ffdd75"}40`, padding:"2px 6px", borderRadius:999 }}>CONTROL</span>
+                  )}
                   {buzz.locked && buzz.playerId === p.id && (
                     <span style={{ fontSize:10, fontWeight:900, color:"#ffdd75", background:"rgba(255,221,117,0.15)", border:"1px solid rgba(255,221,117,0.3)", padding:"2px 6px", borderRadius:999 }}>BUZZED</span>
                   )}
@@ -481,7 +525,6 @@ export default function HostScreen({ state }) {
                 Final Jaypardy
               </button>
 
-              {/* Skip Round */}
               {confirmSkip ? (
                 <button className="jp-btn" style={{ background:"rgba(255,150,0,0.18)", borderColor:"rgba(255,150,0,0.4)", color:"#fbbf24", gridColumn:"span 2" }}
                   onClick={() => { socket.emit("host:skipRound"); setConfirmSkip(false); }}>
@@ -494,7 +537,6 @@ export default function HostScreen({ state }) {
                 </button>
               )}
 
-              {/* Change Daily Double */}
               {pickingDD ? (
                 <button className="jp-btn" style={{ background:"rgba(255,221,117,0.18)", borderColor:"rgba(255,221,117,0.5)", color:"#ffdd75" }}
                   onClick={() => socket.emit("host:cancelPickDD")}>
@@ -513,7 +555,6 @@ export default function HostScreen({ state }) {
                 </div>
               )}
 
-              {/* Save / Load Theme */}
               <button className="jp-btn" disabled={!board || phase !== "board"} onClick={() => { setThemeName(""); setShowSaveTheme(true); }}
                 style={{ background:"rgba(99,179,237,0.12)", borderColor:"rgba(99,179,237,0.35)", color:"#90cdf4" }}>
                 Save Theme
@@ -523,11 +564,9 @@ export default function HostScreen({ state }) {
                 Load Theme
               </button>
 
-              {/* Game History + Sound Levels */}
               <button className="jp-btn" style={{ background:"rgba(160,120,255,0.10)", borderColor:"rgba(160,120,255,0.3)", color:"#c4b5fd" }} onClick={() => setShowHistory(true)}>Game History</button>
               <button className="jp-btn" style={{ background:"rgba(34,197,94,0.10)", borderColor:"rgba(34,197,94,0.3)", color:"#86efac" }} onClick={() => setShowSounds(true)}>Sound Levels</button>
 
-              {/* ── NEW: Pause / Resume ── */}
               {paused ? (
                 <button className="jp-btn" style={{ gridColumn:"span 2", background:"rgba(33,197,93,0.15)", borderColor:"rgba(33,197,93,0.4)", color:"#86efac", fontWeight:900 }}
                   onClick={() => socket.emit("host:resume")}>
@@ -540,7 +579,6 @@ export default function HostScreen({ state }) {
                 </button>
               )}
 
-              {/* Reset Game */}
               {confirmReset ? (
                 <button className="jp-btn jp-btnBad" style={{ gridColumn:"span 2" }}
                   onClick={() => { socket.emit("host:resetGame"); setConfirmReset(false); }}>
@@ -594,11 +632,56 @@ export default function HostScreen({ state }) {
         </aside>
       </div>
 
-      {/* ── NEW: Pause menu modal ── */}
+      {/* ── NEW: Set Control override modal ── */}
+      {showSetControl && (
+        <div style={{ position:"fixed", inset:0, zIndex:999, background:"rgba(0,0,0,0.8)", display:"flex", alignItems:"center", justifyContent:"center", padding:24 }}>
+          <div style={{ background:"#090f3a", border:"1px solid rgba(255,255,255,0.15)", borderRadius:20, padding:28, width:"100%", maxWidth:400 }}>
+            <div style={{ fontSize:20, fontWeight:900, color:"#ffdd75", marginBottom:6, textAlign:"center" }}>Override Board Control</div>
+            <div style={{ fontSize:13, color:"rgba(246,247,255,0.45)", textAlign:"center", marginBottom:20 }}>
+              Tap a player to give them control of the board
+            </div>
+            <div style={{ display:"flex", flexDirection:"column", gap:8, marginBottom:20 }}>
+              {assignedPlayers.length === 0 ? (
+                <div style={{ textAlign:"center", color:"rgba(246,247,255,0.35)", fontSize:14, padding:16 }}>No assigned players</div>
+              ) : (
+                assignedPlayers.map((p) => {
+                  const t = teamById[p.teamId];
+                  const isControl = p.id === controlPlayerId;
+                  return (
+                    <button
+                      key={p.id}
+                      onClick={() => { socket.emit("host:setControl", { playerId: p.id }); setShowSetControl(false); }}
+                      style={{
+                        display:"flex", alignItems:"center", gap:12,
+                        padding:"12px 16px", borderRadius:12, border:"none", cursor:"pointer",
+                        background: isControl ? `${t?.color ?? "#ffdd75"}25` : "rgba(255,255,255,0.05)",
+                        outline: isControl ? `2px solid ${t?.color ?? "#ffdd75"}` : "none",
+                      }}
+                    >
+                      {t && <div style={{ width:10, height:10, borderRadius:"50%", background:t.color, flexShrink:0 }} />}
+                      <span style={{ fontSize:20 }}>{p.emoji}</span>
+                      <div style={{ flex:1, textAlign:"left" }}>
+                        <div style={{ fontWeight:900, fontSize:14, color: t?.color ?? "#ffdd75" }}>{p.name}</div>
+                        <div style={{ fontSize:11, color:"rgba(246,247,255,0.45)" }}>{t?.name ?? ""}</div>
+                      </div>
+                      {isControl && (
+                        <span style={{ fontSize:11, fontWeight:900, color: t?.color ?? "#ffdd75" }}>Current</span>
+                      )}
+                    </button>
+                  );
+                })
+              )}
+            </div>
+            <button className="jp-btn" style={{ width:"100%" }} onClick={() => setShowSetControl(false)}>Cancel</button>
+          </div>
+        </div>
+      )}
+
+      {/* Pause menu modal */}
       {pauseMenuOpen && (
         <div style={{ position:"fixed", inset:0, zIndex:999, background:"rgba(0,0,0,0.8)", display:"flex", alignItems:"center", justifyContent:"center", padding:24 }}>
           <div style={{ background:"#090f3a", border:"1px solid rgba(255,255,255,0.15)", borderRadius:20, padding:28, width:"100%", maxWidth:400 }}>
-            <div style={{ fontSize:20, fontWeight:900, color:"#ffdd75", marginBottom:16, textAlign:"center" }}>⏸ Pause Game</div>
+            <div style={{ fontSize:20, fontWeight:900, color:"#ffdd75", marginBottom:16, textAlign:"center" }}>Pause Game</div>
             <div style={{ fontSize:13, color:"rgba(246,247,255,0.5)", textAlign:"center", marginBottom:20 }}>
               Choose a message to show on all screens
             </div>
