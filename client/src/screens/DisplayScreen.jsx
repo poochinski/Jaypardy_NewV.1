@@ -16,14 +16,53 @@ export default function DisplayScreen({ state }) {
   const [revealAnswer, setRevealAnswer] = useState(null);
   const [wrongFlash,   setWrongFlash]   = useState(null);
   const [muted,        setMuted]        = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false); // ── NEW
   const prevPhaseRef   = useRef(null);
   const prevBuzzRef    = useRef(null);
   const revealTimer    = useRef(null);
   const wrongTimer     = useRef(null);
   const ddChimeFired   = useRef(false);
   const mutedRef       = useRef(false);
+  const correctFiredRef = useRef(false);
 
   useEffect(() => { mutedRef.current = muted; }, [muted]);
+
+  // ── Fullscreen API ────────────────────────────────────────────────────────
+  const toggleFullscreen = () => {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen?.()
+        ?? document.documentElement.webkitRequestFullscreen?.()
+        ?? document.documentElement.mozRequestFullScreen?.()
+        ?? document.documentElement.msRequestFullscreen?.();
+    } else {
+      document.exitFullscreen?.()
+        ?? document.webkitExitFullscreen?.()
+        ?? document.mozCancelFullScreen?.()
+        ?? document.msExitFullscreen?.();
+    }
+  };
+
+  // Track actual fullscreen state from browser events
+  useEffect(() => {
+    const onFsChange = () => {
+      setIsFullscreen(
+        !!(document.fullscreenElement
+          || document.webkitFullscreenElement
+          || document.mozFullScreenElement
+          || document.msFullscreenElement)
+      );
+    };
+    document.addEventListener("fullscreenchange",       onFsChange);
+    document.addEventListener("webkitfullscreenchange", onFsChange);
+    document.addEventListener("mozfullscreenchange",    onFsChange);
+    document.addEventListener("MSFullscreenChange",     onFsChange);
+    return () => {
+      document.removeEventListener("fullscreenchange",       onFsChange);
+      document.removeEventListener("webkitfullscreenchange", onFsChange);
+      document.removeEventListener("mozfullscreenchange",    onFsChange);
+      document.removeEventListener("MSFullscreenChange",     onFsChange);
+    };
+  }, []);
 
   const visibleTeams = teams.filter((t) =>
     players.some((p) => p.teamId === t.id)
@@ -44,18 +83,11 @@ export default function DisplayScreen({ state }) {
   useEffect(() => {
     const prevPhase = prevPhaseRef.current;
     const prevBuzz  = prevBuzzRef.current;
-
     if (
       (prevPhase === "clue" || prevPhase === "dailyDoubleClue") &&
       phase === "board" &&
       prevBuzz?.locked &&
       prevBuzz?.teamId &&
-      // ── FIX: only show CORRECT if a score actually changed (correct mark)
-      // On skip, buzz is cleared server-side before state is sent, so
-      // we detect correct by checking if any team's score increased
-      // compared to what we'd expect — simplest reliable signal is
-      // checking the sound:cue which fires only on correct/wrong.
-      // Instead we use a ref flag set by the sound cue listener.
       correctFiredRef.current
     ) {
       correctFiredRef.current = false;
@@ -71,13 +103,9 @@ export default function DisplayScreen({ state }) {
     } else {
       correctFiredRef.current = false;
     }
-
     prevPhaseRef.current = phase;
     prevBuzzRef.current  = buzz;
   }, [phase, buzz]);
-
-  // ── Track whether a correct sound cue just fired ──────────────────────────
-  const correctFiredRef = useRef(false);
 
   useEffect(() => {
     const onCue = (cue) => {
@@ -174,19 +202,37 @@ export default function DisplayScreen({ state }) {
             );
           })
         )}
-        <button
-          onClick={(e) => { e.stopPropagation(); setMuted((m) => !m); }}
-          title={muted ? "Unmute sound" : "Mute sound"}
-          style={{
-            position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)",
-            background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)",
-            borderRadius: 8, color: muted ? "rgba(246,247,255,0.3)" : "rgba(246,247,255,0.7)",
-            fontSize: 16, width: 32, height: 32, cursor: "pointer",
-            display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
-          }}
-        >
-          {muted ? "🔇" : "🔊"}
-        </button>
+
+        {/* ── Right side controls: mute + fullscreen ── */}
+        <div style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", display: "flex", gap: 6 }}>
+          {/* Mute button */}
+          <button
+            onClick={(e) => { e.stopPropagation(); setMuted((m) => !m); }}
+            title={muted ? "Unmute sound" : "Mute sound"}
+            style={{
+              background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)",
+              borderRadius: 8, color: muted ? "rgba(246,247,255,0.3)" : "rgba(246,247,255,0.7)",
+              fontSize: 16, width: 32, height: 32, cursor: "pointer",
+              display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
+            }}
+          >
+            {muted ? "🔇" : "🔊"}
+          </button>
+
+          {/* ── NEW: Fullscreen button ── */}
+          <button
+            onClick={(e) => { e.stopPropagation(); toggleFullscreen(); }}
+            title={isFullscreen ? "Exit fullscreen" : "Go fullscreen"}
+            style={{
+              background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)",
+              borderRadius: 8, color: "rgba(246,247,255,0.7)",
+              fontSize: 14, width: 32, height: 32, cursor: "pointer",
+              display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
+            }}
+          >
+            {isFullscreen ? "⛶" : "⛶"}
+          </button>
+        </div>
       </div>
     </div>
   );

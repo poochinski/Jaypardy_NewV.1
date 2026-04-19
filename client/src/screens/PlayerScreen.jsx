@@ -115,7 +115,7 @@ export default function PlayerScreen({ state }) {
   if (!joined) {
     return (
       <div style={{
-        minHeight: "100vh", background: "#050a2a", color: "#f6f7ff",
+        minHeight: "100vh", paddingTop: "env(safe-area-inset-top, 0px)", background: "#050a2a", color: "#f6f7ff",
         fontFamily: "ui-sans-serif, system-ui, sans-serif",
         display: "flex", flexDirection: "column", padding: "24px 20px",
       }}>
@@ -189,7 +189,7 @@ export default function PlayerScreen({ state }) {
   if (paused) {
     return (
       <div style={{
-        minHeight: "100vh", background: "#050a2a",
+        minHeight: "100vh", paddingTop: "env(safe-area-inset-top, 0px)", background: "#050a2a",
         display: "flex", flexDirection: "column",
         alignItems: "center", justifyContent: "center",
         gap: 20, padding: 32, textAlign: "center",
@@ -220,7 +220,7 @@ export default function PlayerScreen({ state }) {
 
     return (
       <div style={{
-        minHeight: "100vh", background: "#050a2a", color: "#f6f7ff",
+        minHeight: "100vh", paddingTop: "env(safe-area-inset-top, 0px)", background: "#050a2a", color: "#f6f7ff",
         fontFamily: "ui-sans-serif, system-ui, sans-serif",
         display: "flex", flexDirection: "column",
       }}>
@@ -294,7 +294,7 @@ export default function PlayerScreen({ state }) {
   // ─── Daily Double wager screen ────────────────────────────────────────────
   if (phase === "dailyDouble") {
     return (
-      <div style={{ minHeight: "100vh", background: "#050a2a", color: "#f6f7ff", fontFamily: "ui-sans-serif, system-ui, sans-serif", display: "flex", flexDirection: "column", padding: "24px 20px" }}>
+      <div style={{ minHeight: "100vh", paddingTop: "env(safe-area-inset-top, 0px)", background: "#050a2a", color: "#f6f7ff", fontFamily: "ui-sans-serif, system-ui, sans-serif", display: "flex", flexDirection: "column", padding: "24px 20px" }}>
         <div style={{ textAlign: "center", marginBottom: 32 }}>
           <div style={{ fontSize: 13, fontWeight: 700, color: "rgba(246,247,255,0.4)", letterSpacing: 2, textTransform: "uppercase", marginBottom: 8 }}>
             {state?.currentClue?.category}
@@ -484,7 +484,7 @@ export default function PlayerScreen({ state }) {
   // ─── Default layout (lobby, board, final, game over) ─────────────────────
   return (
     <div style={{
-      minHeight: "100vh", background: "#050a2a", color: "#f6f7ff",
+      minHeight: "100vh", paddingTop: "env(safe-area-inset-top, 0px)", background: "#050a2a", color: "#f6f7ff",
       fontFamily: "ui-sans-serif, system-ui, sans-serif",
       display: "flex", flexDirection: "column",
     }}>

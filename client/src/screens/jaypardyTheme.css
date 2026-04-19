@@ -40,7 +40,6 @@ html, body {
   padding: 0;
 }
 
-
 /* full-page background */
 .jp-root{
   min-height: 100vh;
@@ -57,6 +56,11 @@ html, body {
   padding-right: var(--sar);
   padding-bottom: var(--sab);
   box-sizing: border-box;
+}
+
+/* Safe area top padding — apply to any top bar on mobile screens */
+.jp-safe-top {
+  padding-top: env(safe-area-inset-top, 0px);
 }
 
 /* top bar */
