@@ -10,6 +10,7 @@ export default function HostScreen({ state }) {
   const [showFinalSetup,   setShowFinalSetup]   = useState(false);
   const [allCategories,    setAllCategories]    = useState([]);
   const [pauseMenuOpen,    setPauseMenuOpen]    = useState(false);
+  const [showGameConfig,   setShowGameConfig]   = useState(false);
 
   // ── Latency map ───────────────────────────────────────────────────────────
   const [latencyMap, setLatencyMap] = useState({});
@@ -18,6 +19,12 @@ export default function HostScreen({ state }) {
     socket.on("latency:update", onLatency);
     return () => socket.off("latency:update", onLatency);
   }, []);
+
+  // ── Game config state ─────────────────────────────────────────────────────
+  const [cfgMaxPlayers, setCfgMaxPlayers] = useState(10);
+  const [cfgTeamPlay,   setCfgTeamPlay]   = useState(true);
+  const [cfgNumTeams,   setCfgNumTeams]   = useState(2);
+  const [cfgTheme,      setCfgTheme]      = useState("");
 
   useEffect(() => {
     const onCats = (cats) => setAllCategories(cats);
@@ -28,18 +35,15 @@ export default function HostScreen({ state }) {
       setAllCategories(cats);
       setFinalCategory((prev) => prev || cats[0] || "");
     });
-    return () => {
-      socket.off("categories:update", onCats);
-      socket.off("editor:data");
-    };
+    return () => { socket.off("categories:update", onCats); socket.off("editor:data"); };
   }, []);
 
-  const [finalCategory,    setFinalCategory]    = useState("");
-  const [finalSearch,      setFinalSearch]      = useState("");
-  const [swapSearch,       setSwapSearch]       = useState("");
-  const [showHistory,      setShowHistory]      = useState(false);
-  const [showSounds,       setShowSounds]       = useState(false);
-  const [soundVols,        setSoundVols]        = useState({ ...volumes });
+  const [finalCategory, setFinalCategory] = useState("");
+  const [finalSearch,   setFinalSearch]   = useState("");
+  const [swapSearch,    setSwapSearch]    = useState("");
+  const [showHistory,   setShowHistory]   = useState(false);
+  const [showSounds,    setShowSounds]    = useState(false);
+  const [soundVols,     setSoundVols]     = useState({ ...volumes });
 
   const handleVolChange = (key, val) => {
     const num = parseFloat(val);
@@ -47,12 +51,11 @@ export default function HostScreen({ state }) {
     setSoundVols((prev) => ({ ...prev, [key]: num }));
   };
 
-  // ─── Theme state ──────────────────────────────────────────────────────────
-  const [showSaveTheme,  setShowSaveTheme]  = useState(false);
-  const [showLoadTheme,  setShowLoadTheme]  = useState(false);
-  const [themeName,      setThemeName]      = useState("");
-  const [themeSearch,    setThemeSearch]    = useState("");
-  const [savedThemes,    setSavedThemes]    = useState({});
+  const [showSaveTheme, setShowSaveTheme] = useState(false);
+  const [showLoadTheme, setShowLoadTheme] = useState(false);
+  const [themeName,     setThemeName]     = useState("");
+  const [themeSearch,   setThemeSearch]   = useState("");
+  const [savedThemes,   setSavedThemes]   = useState({});
 
   useEffect(() => {
     const onThemes = (themes) => setSavedThemes(themes);
@@ -63,45 +66,32 @@ export default function HostScreen({ state }) {
 
   const saveTheme = () => {
     if (!themeName.trim() || !board) return;
-    const cats = board.columns.map((c) => c.title);
-    socket.emit("host:saveTheme", { name: themeName.trim(), categories: cats });
-    setThemeName("");
-    setShowSaveTheme(false);
+    socket.emit("host:saveTheme", { name: themeName.trim(), categories: board.columns.map((c) => c.title) });
+    setThemeName(""); setShowSaveTheme(false);
   };
-
   const loadTheme = (name) => {
-    const cats = savedThemes[name];
-    if (!cats) return;
+    const cats = savedThemes[name]; if (!cats) return;
     socket.emit("host:loadTheme", { categories: cats });
-    setShowLoadTheme(false);
-    setThemeSearch("");
+    setShowLoadTheme(false); setThemeSearch("");
   };
-
-  const deleteTheme = (name) => {
-    socket.emit("host:deleteTheme", { name });
-  };
+  const deleteTheme = (name) => { socket.emit("host:deleteTheme", { name }); };
 
   const players      = state?.players ?? [];
   const teams        = state?.teams ?? [];
   const buzz         = state?.buzz ?? { locked: false };
   const board        = state?.board ?? null;
   const clue         = state?.currentClue ?? null;
-  const phase        = state?.phase ?? "lobby";
+  const phase        = state?.phase ?? "pregame";
   const paused       = state?.paused ?? false;
-  const pauseMessage = state?.pauseMessage ?? "";
+  const gameConfig   = state?.gameConfig ?? {};
 
   const controlPlayerId = state?.controlPlayerId ?? null;
   const controlTeamId   = state?.controlTeamId   ?? null;
   const controlPlayer   = players.find((p) => p.id === controlPlayerId) ?? null;
   const controlTeam     = teams.find((t) => t.id === controlTeamId) ?? null;
 
-  const boardCategories = useMemo(() =>
-    board?.columns.map((c) => c.title) ?? [],
-  [board]);
-
-  const availableCategories = allCategories.filter(
-    (cat) => !boardCategories.includes(cat)
-  );
+  const boardCategories = useMemo(() => board?.columns.map((c) => c.title) ?? [], [board]);
+  const availableCategories = allCategories.filter((cat) => !boardCategories.includes(cat));
 
   const doSwap = (newCategory) => {
     if (!swapMenu) return;
@@ -109,49 +99,35 @@ export default function HostScreen({ state }) {
     setSwapMenu(null);
   };
 
-  const teamById = useMemo(() => {
-    const m = {};
-    teams.forEach((t) => { m[t.id] = t; });
-    return m;
-  }, [teams]);
-
+  const teamById = useMemo(() => { const m = {}; teams.forEach((t) => { m[t.id] = t; }); return m; }, [teams]);
   const assignedPlayers   = players.filter((p) => p.teamId);
   const unassignedPlayers = players.filter((p) => !p.teamId);
-
-  const visibleTeams = teams.filter((t) =>
-    players.some((p) => p.teamId === t.id)
-  );
-
+  const visibleTeams = teams.filter((t) => players.some((p) => p.teamId === t.id));
   const buzzerTeam = buzz.locked ? teamById[buzz.teamId] : null;
-
   const isClueActive = phase === "clue" || phase === "dailyDoubleClue";
   const isDDWager    = phase === "dailyDouble";
 
-  const boardComplete = useMemo(() => {
-    if (!board) return false;
-    return board.columns.every((col) => col.clues.every((c) => c.used));
-  }, [board]);
-
+  const boardComplete = useMemo(() => { if (!board) return false; return board.columns.every((col) => col.clues.every((c) => c.used)); }, [board]);
   const canStartRound2 = boardComplete && board?.round === 1 && phase === "board";
 
   const finalJaypardy = state?.finalJaypardy ?? null;
   const isFinal = ["finalWager","finalClue","finalReveal","gameOver"].includes(phase);
   const canStartFinal = boardComplete && board?.round === 2 && phase === "board";
 
-  const pickingDD  = state?.pickingDD ?? false;
-  const ddPicked   = state?.ddPicked ?? 0;
-  const ddNeeded   = board?.round === 2 ? 2 : 1;
+  const pickingDD = state?.pickingDD ?? false;
+  const ddPicked  = state?.ddPicked ?? 0;
+  const ddNeeded  = board?.round === 2 ? 2 : 1;
+  const gameLog   = state?.gameLog ?? [];
 
-  const gameLog = state?.gameLog ?? [];
+  const wagerCount  = finalJaypardy ? Object.values(finalJaypardy.wagers).filter((w) => w !== null).length : 0;
+  const totalWagers = finalJaypardy ? Object.keys(finalJaypardy.wagers).length : 0;
+  const answerCount = finalJaypardy ? Object.values(finalJaypardy.answers).filter((a) => a !== null && a !== "").length : 0;
 
-  const wagerCount = finalJaypardy
-    ? Object.values(finalJaypardy.wagers).filter((w) => w !== null).length : 0;
-  const totalWagers = finalJaypardy
-    ? Object.keys(finalJaypardy.wagers).length : 0;
-  const answerCount = finalJaypardy
-    ? Object.values(finalJaypardy.answers).filter((a) => a !== null && a !== "").length : 0;
+  // ── Lobby readiness — can start if at least 1 player per team (or 1+ if solo)
+  const teamsWithPlayers = teams.filter((t) => players.some((p) => p.teamId === t.id));
+  const canStartFromLobby = phase === "lobby" && teamsWithPlayers.length >= (gameConfig.numTeams ?? 2);
 
-  // ─── Ping bars component ──────────────────────────────────────────────────
+  // ─── Ping bars ────────────────────────────────────────────────────────────
   const PingBars = ({ socketId }) => {
     const ms = latencyMap[socketId];
     if (!ms) return <span style={{ fontSize: 10, color: "rgba(246,247,255,0.15)", width: 16, textAlign: "center" }}>—</span>;
@@ -159,72 +135,125 @@ export default function HostScreen({ state }) {
     const bars  = ms < 80 ? 3 : ms < 200 ? 2 : 1;
     return (
       <div title={`${ms}ms`} style={{ display: "flex", alignItems: "flex-end", gap: 2, height: 14, flexShrink: 0 }}>
-        {[1, 2, 3].map((b) => (
-          <div key={b} style={{
-            width: 4, borderRadius: 1,
-            height: b === 1 ? 5 : b === 2 ? 9 : 13,
-            background: b <= bars ? color : "rgba(255,255,255,0.15)",
-          }} />
-        ))}
+        {[1,2,3].map((b) => <div key={b} style={{ width: 4, borderRadius: 1, height: b===1?5:b===2?9:13, background: b<=bars?color:"rgba(255,255,255,0.15)" }} />)}
       </div>
     );
   };
 
   // ─── Score strip ──────────────────────────────────────────────────────────
   const ScoreStrip = () => (
-    <div style={{
-      display: "flex", gap: 8, padding: "10px 14px",
-      borderBottom: "1px solid rgba(255,255,255,0.08)",
-      background: "rgba(0,0,0,0.18)", flexWrap: "wrap",
-    }}>
+    <div style={{ display:"flex", gap:8, padding:"10px 14px", borderBottom:"1px solid rgba(255,255,255,0.08)", background:"rgba(0,0,0,0.18)", flexWrap:"wrap" }}>
       {visibleTeams.length === 0 ? (
-        <div style={{ color: "rgba(246,247,255,0.4)", fontSize: 13 }}>
-          No teams yet — players will appear after joining
-        </div>
-      ) : (
-        visibleTeams.map((t) => {
-          const teamPlayers = players.filter((p) => p.teamId === t.id);
-          const names       = teamPlayers.map((p) => p.name).join(", ");
-          return (
-            <div key={t.id} style={{
-              display: "flex", alignItems: "center", gap: 8,
-              padding: "6px 12px", borderRadius: 10,
-              background: "rgba(0,0,0,0.22)", border: `1px solid ${t.color}44`,
-              flex: 1, minWidth: 120,
-            }}>
-              <div style={{ width: 10, height: 10, borderRadius: "50%", background: t.color, flexShrink: 0 }} />
-              <div style={{ fontWeight: 700, fontSize: 13, flex: 1 }}>{names || t.name}</div>
-              <div style={{ background: t.color, color: "#fff", fontWeight: 900, fontSize: 14, padding: "2px 8px", borderRadius: 6 }}>
-                ${t.score.toLocaleString()}
-              </div>
-              <button onClick={() => socket.emit("host:adjustScore", { teamId: t.id, delta: 100 })} style={{ ...adjBtn }}>+</button>
-              <button onClick={() => socket.emit("host:adjustScore", { teamId: t.id, delta: -100 })} style={{ ...adjBtn }}>−</button>
-            </div>
-          );
-        })
-      )}
+        <div style={{ color:"rgba(246,247,255,0.4)", fontSize:13 }}>No teams yet</div>
+      ) : visibleTeams.map((t) => {
+        const teamPlayers = players.filter((p) => p.teamId===t.id);
+        const names = teamPlayers.map((p) => p.name).join(", ");
+        return (
+          <div key={t.id} style={{ display:"flex", alignItems:"center", gap:8, padding:"6px 12px", borderRadius:10, background:"rgba(0,0,0,0.22)", border:`1px solid ${t.color}44`, flex:1, minWidth:120 }}>
+            <div style={{ width:10, height:10, borderRadius:"50%", background:t.color, flexShrink:0 }} />
+            <div style={{ fontWeight:700, fontSize:13, flex:1 }}>{names||t.name}</div>
+            <div style={{ background:t.color, color:"#fff", fontWeight:900, fontSize:14, padding:"2px 8px", borderRadius:6 }}>${t.score.toLocaleString()}</div>
+            <button onClick={() => socket.emit("host:adjustScore", { teamId:t.id, delta:100 })} style={{ ...adjBtn }}>+</button>
+            <button onClick={() => socket.emit("host:adjustScore", { teamId:t.id, delta:-100 })} style={{ ...adjBtn }}>−</button>
+          </div>
+        );
+      })}
     </div>
   );
 
   // ─── Main area ────────────────────────────────────────────────────────────
   const MainArea = () => {
 
+    // ── Pregame ──────────────────────────────────────────────────────────────
+    if (phase === "pregame") {
+      return (
+        <div style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:40, gap:24, textAlign:"center" }}>
+          <div style={{ fontSize:48, fontWeight:900, color:"#ffdd75", letterSpacing:-1 }}>JAYPARDY</div>
+          <div style={{ fontSize:16, color:"rgba(246,247,255,0.5)" }}>
+            {players.length === 0 ? "Waiting for players to connect…" : `${players.length} player${players.length !== 1 ? "s" : ""} connected and waiting`}
+          </div>
+          {players.length > 0 && (
+            <div style={{ display:"flex", flexWrap:"wrap", gap:8, justifyContent:"center", maxWidth:400 }}>
+              {players.map((p) => (
+                <div key={p.id} style={{ display:"flex", alignItems:"center", gap:6, padding:"6px 12px", borderRadius:999, background:"rgba(255,255,255,0.07)", border:"1px solid rgba(255,255,255,0.12)", fontSize:13 }}>
+                  <span>{p.emoji}</span><span style={{ fontWeight:700 }}>{p.name}</span>
+                </div>
+              ))}
+            </div>
+          )}
+          <button className="jp-btn" onClick={() => setShowGameConfig(true)}
+            style={{ fontSize:18, fontWeight:900, padding:"18px 40px", background:"rgba(255,221,117,0.2)", borderColor:"rgba(255,221,117,0.6)", color:"#ffdd75", borderRadius:16 }}>
+            Configure Game
+          </button>
+        </div>
+      );
+    }
+
+    // ── Lobby ─────────────────────────────────────────────────────────────────
+    if (phase === "lobby") {
+      return (
+        <div style={{ flex:1, display:"flex", flexDirection:"column", padding:20, gap:16 }}>
+          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+            <div style={{ fontWeight:900, color:"#ffdd75", fontSize:16 }}>Lobby Open</div>
+            <div style={{ fontSize:12, color:"rgba(246,247,255,0.45)" }}>Players are choosing teams</div>
+          </div>
+
+          {/* Team breakdown */}
+          {teams.map((t) => {
+            const members = players.filter((p) => p.teamId === t.id);
+            return (
+              <div key={t.id} style={{ padding:"14px 16px", borderRadius:14, background:`${t.color}10`, border:`1px solid ${t.color}40` }}>
+                <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom: members.length > 0 ? 10 : 0 }}>
+                  <div style={{ width:12, height:12, borderRadius:"50%", background:t.color, flexShrink:0 }} />
+                  <div style={{ fontWeight:900, fontSize:15, color:t.color, flex:1 }}>{t.name}</div>
+                  <div style={{ fontSize:13, color:"rgba(246,247,255,0.4)" }}>{members.length} player{members.length !== 1 ? "s" : ""}</div>
+                </div>
+                {members.length > 0 && (
+                  <div style={{ display:"flex", flexWrap:"wrap", gap:6 }}>
+                    {members.map((p) => (
+                      <div key={p.id} style={{ display:"flex", alignItems:"center", gap:6, padding:"4px 10px", borderRadius:999, background:"rgba(255,255,255,0.08)", fontSize:12 }}>
+                        <span>{p.emoji}</span><span style={{ fontWeight:700 }}>{p.name}</span>
+                        <PingBars socketId={p.id} />
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+
+          {/* Unassigned */}
+          {unassignedPlayers.length > 0 && (
+            <div style={{ padding:"12px 16px", borderRadius:12, background:"rgba(239,68,68,0.08)", border:"1px solid rgba(239,68,68,0.25)" }}>
+              <div style={{ fontSize:12, fontWeight:700, color:"#fca5a5", marginBottom:8 }}>HASN'T PICKED A TEAM</div>
+              <div style={{ display:"flex", flexWrap:"wrap", gap:6 }}>
+                {unassignedPlayers.map((p) => (
+                  <div key={p.id} style={{ display:"flex", alignItems:"center", gap:6, padding:"4px 10px", borderRadius:999, background:"rgba(255,255,255,0.06)", fontSize:12 }}>
+                    <span>{p.emoji}</span><span style={{ fontWeight:700 }}>{p.name}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <button
+            onClick={() => socket.emit("host:startJaypardy")}
+            disabled={!canStartFromLobby}
+            style={{ padding:"18px", borderRadius:14, fontSize:17, fontWeight:900, border:"none", background: canStartFromLobby ? "#ffdd75" : "rgba(255,255,255,0.08)", color: canStartFromLobby ? "#000" : "rgba(255,255,255,0.3)", cursor: canStartFromLobby ? "pointer" : "not-allowed", marginTop:"auto" }}>
+            {canStartFromLobby ? "Start Game →" : `Need players on all ${gameConfig.numTeams ?? 2} teams`}
+          </button>
+        </div>
+      );
+    }
+
     if (phase === "finalWager" && finalJaypardy) {
       return (
         <div style={{ flex:1, display:"flex", flexDirection:"column", padding:24, gap:16 }}>
           <div style={{ fontSize:28, fontWeight:900, color:"#ffdd75", textAlign:"center", letterSpacing:1 }}>FINAL JAYPARDY</div>
-          <div style={{ textAlign:"center", fontSize:20, fontWeight:700, color:"#fff" }}>
-            Category: <span style={{ color:"#ffdd75" }}>{finalJaypardy.category}</span>
-          </div>
-          <div style={{ padding:"12px 16px", borderRadius:10, background:"rgba(255,255,255,0.04)", border:"1px solid rgba(255,255,255,0.08)", textAlign:"center", color:"rgba(246,247,255,0.5)", fontSize:14 }}>
-            Players are entering their wagers privately on their phones
-          </div>
-          <div style={{ textAlign:"center", fontSize:18, fontWeight:700, color:"#21c55d" }}>
-            {wagerCount} / {totalWagers} wagers submitted
-          </div>
-          <button className="jp-btn" style={{ background:"rgba(255,221,117,0.15)", borderColor:"rgba(255,221,117,0.4)", color:"#ffdd75", fontSize:16, padding:16 }} onClick={() => socket.emit("host:revealFinalClue")}>
-            Reveal Clue →
-          </button>
+          <div style={{ textAlign:"center", fontSize:20, fontWeight:700, color:"#fff" }}>Category: <span style={{ color:"#ffdd75" }}>{finalJaypardy.category}</span></div>
+          <div style={{ padding:"12px 16px", borderRadius:10, background:"rgba(255,255,255,0.04)", border:"1px solid rgba(255,255,255,0.08)", textAlign:"center", color:"rgba(246,247,255,0.5)", fontSize:14 }}>Players are entering their wagers privately on their phones</div>
+          <div style={{ textAlign:"center", fontSize:18, fontWeight:700, color:"#21c55d" }}>{wagerCount} / {totalWagers} wagers submitted</div>
+          <button className="jp-btn" style={{ background:"rgba(255,221,117,0.15)", borderColor:"rgba(255,221,117,0.4)", color:"#ffdd75", fontSize:16, padding:16 }} onClick={() => socket.emit("host:revealFinalClue")}>Reveal Clue →</button>
         </div>
       );
     }
@@ -241,9 +270,7 @@ export default function HostScreen({ state }) {
             <div style={{ fontWeight:900, color:"#ffdd75", fontSize:18 }}>{finalJaypardy.answer}</div>
           </div>
           <div style={{ textAlign:"center", fontSize:16, fontWeight:700, color:"#21c55d" }}>{answerCount} / {totalWagers} answers submitted</div>
-          <button className="jp-btn" style={{ background:"rgba(255,221,117,0.15)", borderColor:"rgba(255,221,117,0.4)", color:"#ffdd75", fontSize:16, padding:16 }} onClick={() => socket.emit("host:startFinalReveal")}>
-            Start Reveal →
-          </button>
+          <button className="jp-btn" style={{ background:"rgba(255,221,117,0.15)", borderColor:"rgba(255,221,117,0.4)", color:"#ffdd75", fontSize:16, padding:16 }} onClick={() => socket.emit("host:startFinalReveal")}>Start Reveal →</button>
         </div>
       );
     }
@@ -254,28 +281,24 @@ export default function HostScreen({ state }) {
         <div style={{ flex:1, display:"flex", flexDirection:"column", padding:24, gap:12 }}>
           <div style={{ fontSize:22, fontWeight:900, color:"#ffdd75", textAlign:"center", marginBottom:8 }}>FINAL JAYPARDY — REVEAL</div>
           {eligibleIds.map((pid) => {
-            const p = players.find((x) => x.id === pid);
-            const team = p ? teamById[p.teamId] : null;
-            const wager = finalJaypardy.wagers[pid];
-            const answer = finalJaypardy.answers[pid];
+            const p = players.find((x) => x.id===pid); const team = p ? teamById[p.teamId] : null;
+            const wager = finalJaypardy.wagers[pid]; const answer = finalJaypardy.answers[pid];
             const revealed = finalJaypardy.revealed.includes(pid);
             return (
-              <div key={pid} style={{ padding:"12px 16px", borderRadius:12, background: revealed ? "rgba(255,255,255,0.06)" : "rgba(255,255,255,0.02)", border: revealed ? `1px solid ${team?.color ?? "rgba(255,255,255,0.2)"}` : "1px solid rgba(255,255,255,0.08)" }}>
-                <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom: revealed ? 8 : 0 }}>
+              <div key={pid} style={{ padding:"12px 16px", borderRadius:12, background: revealed?"rgba(255,255,255,0.06)":"rgba(255,255,255,0.02)", border: revealed?`1px solid ${team?.color??"rgba(255,255,255,0.2)"}`:"1px solid rgba(255,255,255,0.08)" }}>
+                <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom: revealed?8:0 }}>
                   {team && <div style={{ width:8, height:8, borderRadius:"50%", background:team.color, flexShrink:0 }} />}
                   <span style={{ fontSize:16 }}>{p?.emoji}</span>
-                  <span style={{ fontWeight:900, fontSize:15, flex:1 }}>{p?.name ?? pid}</span>
-                  {revealed && <span style={{ fontSize:13, fontWeight:700, color:"#ffdd75" }}>Wager: ${wager?.toLocaleString() ?? "?"}</span>}
-                  {!revealed && (
-                    <button className="jp-btn" style={{ fontSize:12, padding:"6px 12px" }} onClick={() => socket.emit("host:revealFinalAnswer", { playerId: pid })}>Reveal</button>
-                  )}
+                  <span style={{ fontWeight:900, fontSize:15, flex:1 }}>{p?.name??pid}</span>
+                  {revealed && <span style={{ fontSize:13, fontWeight:700, color:"#ffdd75" }}>Wager: ${wager?.toLocaleString()??"?"}</span>}
+                  {!revealed && <button className="jp-btn" style={{ fontSize:12, padding:"6px 12px" }} onClick={() => socket.emit("host:revealFinalAnswer", { playerId:pid })}>Reveal</button>}
                 </div>
                 {revealed && (
                   <>
-                    <div style={{ fontSize:15, color:"#fff", marginBottom:8, fontStyle: answer ? "normal" : "italic", opacity: answer ? 1 : 0.4 }}>{answer || "No answer submitted"}</div>
+                    <div style={{ fontSize:15, color:"#fff", marginBottom:8, fontStyle:answer?"normal":"italic", opacity:answer?1:0.4 }}>{answer||"No answer submitted"}</div>
                     <div style={{ display:"flex", gap:8 }}>
-                      <button className="jp-btn jp-btnGood" style={{ flex:1, fontSize:13 }} onClick={() => socket.emit("host:markFinal", { playerId: pid, correct: true })}>Correct +${wager?.toLocaleString()}</button>
-                      <button className="jp-btn jp-btnBad" style={{ flex:1, fontSize:13 }} onClick={() => socket.emit("host:markFinal", { playerId: pid, correct: false })}>Wrong −${wager?.toLocaleString()}</button>
+                      <button className="jp-btn jp-btnGood" style={{ flex:1, fontSize:13 }} onClick={() => socket.emit("host:markFinal", { playerId:pid, correct:true })}>Correct +${wager?.toLocaleString()}</button>
+                      <button className="jp-btn jp-btnBad"  style={{ flex:1, fontSize:13 }} onClick={() => socket.emit("host:markFinal", { playerId:pid, correct:false })}>Wrong −${wager?.toLocaleString()}</button>
                     </div>
                   </>
                 )}
@@ -288,20 +311,20 @@ export default function HostScreen({ state }) {
     }
 
     if (phase === "gameOver") {
-      const sorted = [...teams].filter((t) => players.some((p) => p.teamId === t.id)).sort((a, b) => b.score - a.score);
+      const sorted = [...teams].filter((t) => players.some((p) => p.teamId===t.id)).sort((a,b) => b.score-a.score);
       return (
         <div style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:40, gap:20, textAlign:"center" }}>
           <div style={{ fontSize:48, fontWeight:900, color:"#ffdd75" }}>GAME OVER</div>
           {sorted.map((t, i) => {
-            const teamPlayers = players.filter((p) => p.teamId === t.id);
+            const teamPlayers = players.filter((p) => p.teamId===t.id);
             return (
-              <div key={t.id} style={{ display:"flex", alignItems:"center", gap:14, padding:"12px 24px", borderRadius:14, background: i === 0 ? "rgba(255,221,117,0.15)" : "rgba(255,255,255,0.04)", border: i === 0 ? "2px solid rgba(255,221,117,0.5)" : "1px solid rgba(255,255,255,0.10)", width:"100%", maxWidth:400 }}>
-                <div style={{ fontSize:24, fontWeight:900, color:"rgba(246,247,255,0.4)", width:32 }}>{i === 0 ? "🏆" : `${i+1}.`}</div>
+              <div key={t.id} style={{ display:"flex", alignItems:"center", gap:14, padding:"12px 24px", borderRadius:14, background:i===0?"rgba(255,221,117,0.15)":"rgba(255,255,255,0.04)", border:i===0?"2px solid rgba(255,221,117,0.5)":"1px solid rgba(255,255,255,0.10)", width:"100%", maxWidth:400 }}>
+                <div style={{ fontSize:24, fontWeight:900, color:"rgba(246,247,255,0.4)", width:32 }}>{i===0?"🏆":`${i+1}.`}</div>
                 <div style={{ flex:1, textAlign:"left" }}>
-                  <div style={{ fontWeight:900, color: i === 0 ? "#ffdd75" : "#f6f7ff", fontSize:18 }}>{teamPlayers.map((p) => p.name).join(", ")}</div>
+                  <div style={{ fontWeight:900, color:i===0?"#ffdd75":"#f6f7ff", fontSize:18 }}>{teamPlayers.map((p)=>p.name).join(", ")}</div>
                   <div style={{ fontSize:12, color:"rgba(246,247,255,0.5)", marginTop:2 }}>{t.name}</div>
                 </div>
-                <div style={{ background: t.color, color:"#fff", fontWeight:900, fontSize:20, padding:"4px 14px", borderRadius:8 }}>${t.score.toLocaleString()}</div>
+                <div style={{ background:t.color, color:"#fff", fontWeight:900, fontSize:20, padding:"4px 14px", borderRadius:8 }}>${t.score.toLocaleString()}</div>
               </div>
             );
           })}
@@ -316,16 +339,13 @@ export default function HostScreen({ state }) {
           <div style={{ fontSize:52, fontWeight:900, color:"#ffdd75", letterSpacing:-1 }}>DAILY DOUBLE</div>
           <div style={{ fontSize:18, color:"rgba(246,247,255,0.55)" }}>{clue?.category} — ${clue?.value}</div>
           {controlPlayer && (
-            <div style={{ display:"flex", alignItems:"center", gap:10, padding:"10px 18px", borderRadius:12, background:`${controlTeam?.color ?? "#ffdd75"}18`, border:`1px solid ${controlTeam?.color ?? "#ffdd75"}55` }}>
+            <div style={{ display:"flex", alignItems:"center", gap:10, padding:"10px 18px", borderRadius:12, background:`${controlTeam?.color??"#ffdd75"}18`, border:`1px solid ${controlTeam?.color??"#ffdd75"}55` }}>
               <span style={{ fontSize:20 }}>{controlPlayer.emoji}</span>
-              <div>
-                <div style={{ fontWeight:900, fontSize:14, color: controlTeam?.color ?? "#ffdd75" }}>{controlPlayer.name}</div>
-                <div style={{ fontSize:11, color:"rgba(246,247,255,0.45)" }}>entering wager</div>
-              </div>
+              <div><div style={{ fontWeight:900, fontSize:14, color:controlTeam?.color??"#ffdd75" }}>{controlPlayer.name}</div><div style={{ fontSize:11, color:"rgba(246,247,255,0.45)" }}>entering wager</div></div>
             </div>
           )}
           <div style={{ fontSize:15, color:"rgba(246,247,255,0.4)", marginTop:8 }}>Waiting for player to submit wager…</div>
-          <button className="jp-btn" style={{ marginTop:16 }} onClick={() => socket.emit("host:mark", { result: "skip" })}>Skip Daily Double</button>
+          <button className="jp-btn" style={{ marginTop:16 }} onClick={() => socket.emit("host:mark", { result:"skip" })}>Skip Daily Double</button>
         </div>
       );
     }
@@ -336,7 +356,7 @@ export default function HostScreen({ state }) {
           <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:10, flexShrink:0 }}>
             <div style={{ padding:"5px 16px", borderRadius:999, background:"rgba(255,255,255,0.07)", border:"1px solid rgba(255,255,255,0.18)", fontSize:11, fontWeight:700, color:"rgba(246,247,255,0.8)", textTransform:"uppercase", letterSpacing:1 }}>{clue.category}</div>
             <div style={{ padding:"5px 16px", borderRadius:999, background:"rgba(255,221,117,0.18)", border:"1px solid rgba(255,221,117,0.45)", fontSize:14, fontWeight:900, color:"#ffdd75" }}>
-              {phase === "dailyDoubleClue" ? `Daily Double — $${state?.wager?.amount?.toLocaleString() ?? "?"}` : `$${clue.value}`}
+              {phase==="dailyDoubleClue" ? `Daily Double — $${state?.wager?.amount?.toLocaleString()??"?"}` : `$${clue.value}`}
             </div>
           </div>
           <div style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"center", textAlign:"center" }}>
@@ -347,22 +367,19 @@ export default function HostScreen({ state }) {
             <div style={{ fontWeight:900, color:"#ffdd75", fontSize:15 }}>{clue.answer}</div>
           </div>
           {buzz.locked ? (
-            <div style={{ display:"flex", alignItems:"center", gap:12, padding:"12px 16px", borderRadius:12, background:`${buzzerTeam?.color ?? "#ffdd75"}18`, border:`2px solid ${buzzerTeam?.color ?? "#ffdd75"}`, flexShrink:0 }}>
+            <div style={{ display:"flex", alignItems:"center", gap:12, padding:"12px 16px", borderRadius:12, background:`${buzzerTeam?.color??"#ffdd75"}18`, border:`2px solid ${buzzerTeam?.color??"#ffdd75"}`, flexShrink:0 }}>
               <div style={{ fontSize:24, width:40, height:40, borderRadius:"50%", background:"rgba(255,255,255,0.1)", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>{buzz.emoji}</div>
-              <div>
-                <div style={{ fontWeight:900, fontSize:16, color:buzzerTeam?.color ?? "#ffdd75" }}>{buzz.name} — {buzzerTeam?.name ?? ""}</div>
-                <div style={{ fontSize:12, color:"rgba(246,247,255,0.5)", marginTop:1 }}>buzzed in</div>
-              </div>
+              <div><div style={{ fontWeight:900, fontSize:16, color:buzzerTeam?.color??"#ffdd75" }}>{buzz.name} — {buzzerTeam?.name??""}</div><div style={{ fontSize:12, color:"rgba(246,247,255,0.5)", marginTop:1 }}>buzzed in</div></div>
             </div>
           ) : (
             <div style={{ padding:"10px 16px", borderRadius:10, background:"rgba(255,255,255,0.03)", border:"1px solid rgba(255,255,255,0.08)", color:"rgba(246,247,255,0.3)", fontSize:13, fontWeight:700, textAlign:"center", flexShrink:0 }}>Waiting for buzz…</div>
           )}
           <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, flexShrink:0 }}>
-            <button onClick={() => socket.emit("host:mark", { result: "correct" })} disabled={!buzz.locked} style={{ padding:"16px", borderRadius:12, border:"none", background: buzz.locked ? "#16a34a" : "rgba(22,163,74,0.25)", color: buzz.locked ? "#fff" : "rgba(255,255,255,0.3)", fontSize:17, fontWeight:900, cursor: buzz.locked ? "pointer" : "not-allowed" }}>Correct ✓</button>
-            <button onClick={() => socket.emit("host:mark", { result: "wrong" })} disabled={!buzz.locked} style={{ padding:"16px", borderRadius:12, border:"none", background: buzz.locked ? "#dc2626" : "rgba(220,38,38,0.25)", color: buzz.locked ? "#fff" : "rgba(255,255,255,0.3)", fontSize:17, fontWeight:900, cursor: buzz.locked ? "pointer" : "not-allowed" }}>Wrong ✗</button>
+            <button onClick={() => socket.emit("host:mark", { result:"correct" })} disabled={!buzz.locked} style={{ padding:"16px", borderRadius:12, border:"none", background:buzz.locked?"#16a34a":"rgba(22,163,74,0.25)", color:buzz.locked?"#fff":"rgba(255,255,255,0.3)", fontSize:17, fontWeight:900, cursor:buzz.locked?"pointer":"not-allowed" }}>Correct ✓</button>
+            <button onClick={() => socket.emit("host:mark", { result:"wrong" })}   disabled={!buzz.locked} style={{ padding:"16px", borderRadius:12, border:"none", background:buzz.locked?"#dc2626":"rgba(220,38,38,0.25)",  color:buzz.locked?"#fff":"rgba(255,255,255,0.3)", fontSize:17, fontWeight:900, cursor:buzz.locked?"pointer":"not-allowed" }}>Wrong ✗</button>
           </div>
           <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, flexShrink:0 }}>
-            <button onClick={() => socket.emit("host:mark", { result: "skip" })} style={{ padding:"10px", borderRadius:8, border:"1px solid rgba(255,255,255,0.28)", background:"rgba(255,255,255,0.09)", color:"#f6f7ff", fontSize:13, fontWeight:800, cursor:"pointer" }}>Skip</button>
+            <button onClick={() => socket.emit("host:mark", { result:"skip" })} style={{ padding:"10px", borderRadius:8, border:"1px solid rgba(255,255,255,0.28)", background:"rgba(255,255,255,0.09)", color:"#f6f7ff", fontSize:13, fontWeight:800, cursor:"pointer" }}>Skip</button>
             <button onClick={() => socket.emit("host:resetBuzz")} style={{ padding:"10px", borderRadius:8, border:"1px solid rgba(255,255,255,0.10)", background:"transparent", color:"rgba(246,247,255,0.35)", fontSize:11, fontWeight:700, cursor:"pointer" }}>Reset Buzzers</button>
           </div>
         </div>
@@ -371,44 +388,28 @@ export default function HostScreen({ state }) {
 
     // Board view
     return (
-      <div style={{ padding: 12 }}>
+      <div style={{ padding:12 }}>
         <div style={{ display:"flex", alignItems:"baseline", justifyContent:"space-between", padding:"10px 4px 10px" }}>
           <div style={{ fontWeight:900, color:"#ffdd75", fontSize:13, letterSpacing:0.5 }}>Board</div>
           <div style={{ fontSize:12, color:"rgba(246,247,255,0.45)" }}>
-            {pickingDD
-              ? `Pick Daily Double ${ddPicked + 1} of ${ddNeeded} — tap a dashed cell ($400 or higher)`
-              : board ? "Tap a category name to swap it, tap a square to select a clue" : "Press Start Game to generate the board"
-            }
+            {pickingDD ? `Pick Daily Double ${ddPicked+1} of ${ddNeeded} — tap a dashed cell` : board ? "Tap a category name to swap it, tap a square to select a clue" : "Press Start Game to generate the board"}
           </div>
         </div>
         {pickingDD && (
           <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"8px 12px", background:"rgba(255,221,117,0.12)", border:"1px solid rgba(255,221,117,0.35)", borderRadius:8, margin:"0 4px 8px" }}>
-            <div style={{ fontSize:12, fontWeight:700, color:"#ffdd75" }}>Picking DD {ddPicked + 1} of {ddNeeded} — tap any dashed cell</div>
+            <div style={{ fontSize:12, fontWeight:700, color:"#ffdd75" }}>Picking DD {ddPicked+1} of {ddNeeded}</div>
             <button onClick={() => socket.emit("host:cancelPickDD")} style={{ fontSize:11, fontWeight:700, color:"rgba(246,247,255,0.5)", background:"transparent", border:"1px solid rgba(255,255,255,0.15)", borderRadius:6, padding:"3px 8px", cursor:"pointer" }}>Cancel</button>
           </div>
         )}
-        {!board ? (
-          <div style={{ color:"rgba(246,247,255,0.4)", fontSize:14, padding:16 }}>No board yet.</div>
-        ) : (
+        {!board ? <div style={{ color:"rgba(246,247,255,0.4)", fontSize:14, padding:16 }}>No board yet.</div> : (
           <div className="jp-boardGrid">
             {board.columns.map((col, colIndex) => (
               <div key={col.id} className="jp-col">
-                <button className="jp-cat" onClick={() => { if (phase === "board") { setSwapMenu({ colIndex }); setSwapSearch(""); } }}
-                  style={{ cursor: phase === "board" ? "pointer" : "default", width:"100%", textAlign:"center" }} title="Tap to swap this category">
-                  {col.title}
-                </button>
+                <button className="jp-cat" onClick={() => { if (phase==="board") { setSwapMenu({ colIndex }); setSwapSearch(""); } }} style={{ cursor:phase==="board"?"pointer":"default", width:"100%", textAlign:"center" }}>{col.title}</button>
                 {col.clues.map((c, rowIndex) => {
-                  const isEligibleDD = pickingDD && !c.used && !c.isDD && rowIndex >= 1;
-                  const handleClick = pickingDD
-                    ? () => isEligibleDD && socket.emit("host:pickDD", { colIndex, rowIndex })
-                    : () => socket.emit("host:selectClue", { colIndex, rowIndex });
-                  return (
-                    <button key={c.id} className="jp-cell" disabled={c.used || (pickingDD && !isEligibleDD)} onClick={handleClick}
-                      style={{ opacity: c.used ? 0.3 : 1, cursor: c.used ? "not-allowed" : pickingDD && !isEligibleDD ? "not-allowed" : "pointer", outline: c.isDD ? "3px solid rgba(255,215,79,0.9)" : isEligibleDD ? "2px dashed rgba(255,215,79,0.6)" : "none" }}>
-                      ${c.value}
-                      {c.isDD && <span className="jp-dd">DD</span>}
-                    </button>
-                  );
+                  const isEligibleDD = pickingDD && !c.used && !c.isDD && rowIndex>=1;
+                  const handleClick = pickingDD ? () => isEligibleDD && socket.emit("host:pickDD",{colIndex,rowIndex}) : () => socket.emit("host:selectClue",{colIndex,rowIndex});
+                  return <button key={c.id} className="jp-cell" disabled={c.used||(pickingDD&&!isEligibleDD)} onClick={handleClick} style={{ opacity:c.used?0.3:1, cursor:c.used?"not-allowed":pickingDD&&!isEligibleDD?"not-allowed":"pointer", outline:c.isDD?"3px solid rgba(255,215,79,0.9)":isEligibleDD?"2px dashed rgba(255,215,79,0.6)":"none" }}>${c.value}{c.isDD&&<span className="jp-dd">DD</span>}</button>;
                 })}
               </div>
             ))}
@@ -421,211 +422,145 @@ export default function HostScreen({ state }) {
   // ─── Render ───────────────────────────────────────────────────────────────
   return (
     <div className="jp-root">
-
       <header className="jp-topbar">
         <div className="jp-title">JAYPARDY — HOST</div>
         <div className="jp-chip">Phase: <b>{phase}</b></div>
-        <div className="jp-chip">Round: <b>{board?.round ?? "—"}</b></div>
-        <div className="jp-chip">Socket: <b>{socket.connected ? "Connected ✅" : "Disconnected ❌"}</b></div>
+        <div className="jp-chip">Round: <b>{board?.round??"—"}</b></div>
+        <div className="jp-chip">Socket: <b>{socket.connected?"Connected ✅":"Disconnected ❌"}</b></div>
       </header>
 
-      <ScoreStrip />
+      {phase !== "pregame" && <ScoreStrip />}
 
       <div className="jp-layout">
-        <section className="jp-boardZone" style={{ display:"flex", flexDirection:"column" }}>
-          <MainArea />
-        </section>
+        <section className="jp-boardZone" style={{ display:"flex", flexDirection:"column" }}><MainArea /></section>
 
         <aside className="jp-sideZone">
 
-          {/* Players */}
-          <div className="jp-panel">
-            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:10 }}>
-              <div className="jp-panelTitle" style={{ marginBottom:0 }}>Players</div>
-              {phase !== "lobby" && assignedPlayers.length > 0 && (
-                <div style={{ fontSize:10, color:"rgba(246,247,255,0.35)", fontStyle:"italic" }}>Tap to set control</div>
-              )}
-            </div>
+          {/* Players panel — show during lobby and game */}
+          {phase !== "pregame" && (
+            <div className="jp-panel">
+              <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:10 }}>
+                <div className="jp-panelTitle" style={{ marginBottom:0 }}>Players</div>
+                {phase !== "lobby" && phase !== "gameOver" && !isFinal && assignedPlayers.length > 0 && (
+                  <div style={{ fontSize:10, color:"rgba(246,247,255,0.35)", fontStyle:"italic" }}>Tap to set control</div>
+                )}
+              </div>
 
-            {unassignedPlayers.length > 0 && (
-              <>
-                <div style={{ fontSize:10, fontWeight:700, color:"#ef4444", textTransform:"uppercase", letterSpacing:0.6, marginBottom:6 }}>Needs a team</div>
-                {unassignedPlayers.map((p) => (
-                  <div key={p.id} style={{ display:"flex", alignItems:"center", gap:8, padding:"7px 8px", borderRadius:9, border:"1px solid rgba(239,68,68,0.3)", background:"rgba(239,68,68,0.07)", marginBottom:5 }}>
+              {unassignedPlayers.length > 0 && phase !== "lobby" && (
+                <>
+                  <div style={{ fontSize:10, fontWeight:700, color:"#ef4444", textTransform:"uppercase", letterSpacing:0.6, marginBottom:6 }}>Needs a team</div>
+                  {unassignedPlayers.map((p) => (
+                    <div key={p.id} style={{ display:"flex", alignItems:"center", gap:8, padding:"7px 8px", borderRadius:9, border:"1px solid rgba(239,68,68,0.3)", background:"rgba(239,68,68,0.07)", marginBottom:5 }}>
+                      <span style={{ fontSize:16 }}>{p.emoji}</span><PingBars socketId={p.id} />
+                      <span style={{ fontWeight:700, fontSize:12, flex:1 }}>{p.name}</span>
+                      <select className="jp-teamSelect" value="" onChange={(e) => socket.emit("host:assignTeam", { playerId:p.id, teamId:e.target.value })}>
+                        <option value="" disabled>Assign…</option>
+                        {teams.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+                      </select>
+                    </div>
+                  ))}
+                  {assignedPlayers.length > 0 && <div style={{ fontSize:10, fontWeight:700, color:"rgba(246,247,255,0.4)", textTransform:"uppercase", letterSpacing:0.6, margin:"10px 0 6px" }}>Assigned</div>}
+                </>
+              )}
+
+              {assignedPlayers.length === 0 && unassignedPlayers.length === 0 && (
+                <div className="jp-muted">No players yet.</div>
+              )}
+
+              {assignedPlayers.map((p) => {
+                const t = teamById[p.teamId];
+                const isControl = p.id === controlPlayerId;
+                const gameActive = phase !== "lobby" && phase !== "gameOver" && !isFinal;
+                return (
+                  <div key={p.id} onClick={() => gameActive && socket.emit("host:setControl", { playerId:p.id })}
+                    style={{ display:"flex", alignItems:"center", gap:8, padding:"7px 8px", borderRadius:9, border:`1px solid ${isControl?(t?.color??"#ffdd75")+"88":(t?.color??"rgba(255,255,255,0.08)")+"33"}`, background:isControl?`${t?.color??"#ffdd75"}10`:"rgba(255,255,255,0.04)", marginBottom:5, cursor:gameActive?"pointer":"default", transition:"background 0.1s, border 0.1s" }}
+                    title={gameActive?`Tap to give ${p.name} board control`:""}>
+                    {t && <div style={{ width:8, height:8, borderRadius:"50%", background:t.color, flexShrink:0 }} />}
                     <span style={{ fontSize:16 }}>{p.emoji}</span>
                     <PingBars socketId={p.id} />
                     <span style={{ fontWeight:700, fontSize:12, flex:1 }}>{p.name}</span>
-                    <select className="jp-teamSelect" value="" onChange={(e) => socket.emit("host:assignTeam", { playerId: p.id, teamId: e.target.value })}>
-                      <option value="" disabled>Assign…</option>
-                      {teams.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
-                    </select>
+                    {isControl && <span style={{ fontSize:10, fontWeight:900, color:t?.color??"#ffdd75", background:`${t?.color??"#ffdd75"}20`, border:`1px solid ${t?.color??"#ffdd75"}40`, padding:"2px 6px", borderRadius:999 }}>CONTROL</span>}
+                    {buzz.locked && buzz.playerId===p.id && <span style={{ fontSize:10, fontWeight:900, color:"#ffdd75", background:"rgba(255,221,117,0.15)", border:"1px solid rgba(255,221,117,0.3)", padding:"2px 6px", borderRadius:999 }}>BUZZED</span>}
+                    <div onClick={(e) => e.stopPropagation()}>
+                      <select className="jp-teamSelect" value={p.teamId??""} onChange={(e) => socket.emit("host:assignTeam", { playerId:p.id, teamId:e.target.value })}>
+                        {teams.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+                      </select>
+                    </div>
                   </div>
-                ))}
-                {assignedPlayers.length > 0 && (
-                  <div style={{ fontSize:10, fontWeight:700, color:"rgba(246,247,255,0.4)", textTransform:"uppercase", letterSpacing:0.6, margin:"10px 0 6px" }}>Assigned</div>
-                )}
-              </>
-            )}
+                );
+              })}
+            </div>
+          )}
 
-            {assignedPlayers.length === 0 && unassignedPlayers.length === 0 && (
-              <div className="jp-muted">No players yet.</div>
-            )}
-
-            {assignedPlayers.map((p) => {
-              const t = teamById[p.teamId];
-              const isControl = p.id === controlPlayerId;
-              const gameActive = phase !== "lobby" && phase !== "gameOver" && !isFinal;
-              return (
-                <div
-                  key={p.id}
-                  onClick={() => gameActive && socket.emit("host:setControl", { playerId: p.id })}
-                  style={{
-                    display:"flex", alignItems:"center", gap:8,
-                    padding:"7px 8px", borderRadius:9,
-                    border:`1px solid ${isControl ? (t?.color ?? "#ffdd75") + "88" : (t?.color ?? "rgba(255,255,255,0.08)") + "33"}`,
-                    background: isControl ? `${t?.color ?? "#ffdd75"}10` : "rgba(255,255,255,0.04)",
-                    marginBottom:5,
-                    cursor: gameActive ? "pointer" : "default",
-                    transition: "background 0.1s, border 0.1s",
-                  }}
-                  title={gameActive ? `Tap to give ${p.name} board control` : ""}
-                >
-                  {t && <div style={{ width:8, height:8, borderRadius:"50%", background:t.color, flexShrink:0 }} />}
-                  <span style={{ fontSize:16 }}>{p.emoji}</span>
-                  <PingBars socketId={p.id} />
-                  <span style={{ fontWeight:700, fontSize:12, flex:1 }}>{p.name}</span>
-                  {isControl && (
-                    <span style={{ fontSize:10, fontWeight:900, color: t?.color ?? "#ffdd75", background:`${t?.color ?? "#ffdd75"}20`, border:`1px solid ${t?.color ?? "#ffdd75"}40`, padding:"2px 6px", borderRadius:999 }}>CONTROL</span>
-                  )}
-                  {buzz.locked && buzz.playerId === p.id && (
-                    <span style={{ fontSize:10, fontWeight:900, color:"#ffdd75", background:"rgba(255,221,117,0.15)", border:"1px solid rgba(255,221,117,0.3)", padding:"2px 6px", borderRadius:999 }}>BUZZED</span>
-                  )}
-                  <div onClick={(e) => e.stopPropagation()}>
-                    <select className="jp-teamSelect" value={p.teamId ?? ""} onChange={(e) => socket.emit("host:assignTeam", { playerId: p.id, teamId: e.target.value })}>
-                      {teams.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
-                    </select>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-
-          {/* Host controls */}
+          {/* Controls panel */}
           <div className="jp-panel">
             <div className="jp-panelTitle">Controls</div>
             <div className="jp-controlsGrid">
 
-              <button className="jp-btn" onClick={() => socket.emit("host:startJaypardy")} disabled={phase !== "lobby"}>Start Game</button>
-              <button className="jp-btn" onClick={() => socket.emit("host:newBoard")} disabled={phase === "lobby"}>New Board</button>
-
-              <button className="jp-btn" disabled={!canStartRound2} onClick={() => socket.emit("host:startRound2")}
-                style={canStartRound2 ? { background:"rgba(255,221,117,0.15)", borderColor:"rgba(255,221,117,0.4)", color:"#ffdd75" } : {}}>
-                Round 2
-              </button>
-              <button className="jp-btn" disabled={!canStartFinal && !isFinal} onClick={() => setShowFinalSetup(true)}
-                style={canStartFinal ? { background:"rgba(255,221,117,0.25)", borderColor:"rgba(255,221,117,0.6)", color:"#ffdd75", fontWeight:900 } : {}}>
-                Final Jaypardy
-              </button>
-
-              {confirmSkip ? (
-                <button className="jp-btn" style={{ background:"rgba(255,150,0,0.18)", borderColor:"rgba(255,150,0,0.4)", color:"#fbbf24", gridColumn:"span 2" }}
-                  onClick={() => { socket.emit("host:skipRound"); setConfirmSkip(false); }}>
-                  Confirm Skip Round
-                </button>
-              ) : (
-                <button className="jp-btn" style={{ background:"rgba(255,150,0,0.08)", borderColor:"rgba(255,150,0,0.25)", color:"#fbbf24" }}
-                  disabled={phase === "lobby" || !board} onClick={() => setConfirmSkip(true)}>
-                  Skip Round
-                </button>
+              {phase === "pregame" && (
+                <button className="jp-btn" style={{ gridColumn:"span 2", background:"rgba(255,221,117,0.15)", borderColor:"rgba(255,221,117,0.4)", color:"#ffdd75", fontWeight:900 }} onClick={() => setShowGameConfig(true)}>Configure Game</button>
               )}
 
-              {pickingDD ? (
-                <button className="jp-btn" style={{ background:"rgba(255,221,117,0.18)", borderColor:"rgba(255,221,117,0.5)", color:"#ffdd75" }}
-                  onClick={() => socket.emit("host:cancelPickDD")}>
-                  Cancel DD Pick
-                </button>
-              ) : (
-                <button className="jp-btn" disabled={phase !== "board" || !board} onClick={() => socket.emit("host:clearDDs")}>
-                  Change Daily Double
-                </button>
-              )}
+              {phase !== "pregame" && (
+                <>
+                  <button className="jp-btn" onClick={() => socket.emit("host:newBoard")} disabled={phase==="lobby"}>New Board</button>
+                  <button className="jp-btn" disabled={!canStartRound2} onClick={() => socket.emit("host:startRound2")} style={canStartRound2?{background:"rgba(255,221,117,0.15)",borderColor:"rgba(255,221,117,0.4)",color:"#ffdd75"}:{}}>Round 2</button>
+                  <button className="jp-btn" disabled={!canStartFinal&&!isFinal} onClick={() => setShowFinalSetup(true)} style={canStartFinal?{background:"rgba(255,221,117,0.25)",borderColor:"rgba(255,221,117,0.6)",color:"#ffdd75",fontWeight:900}:{}}>Final Jaypardy</button>
 
-              {confirmSkip && (
-                <div style={{ fontSize:11, color:"rgba(246,247,255,0.4)", gridColumn:"span 2", textAlign:"center", marginTop:-4 }}>
-                  Skips to next round without completing this one
-                  <span style={{ marginLeft:8, color:"#ffdd75", cursor:"pointer" }} onClick={() => setConfirmSkip(false)}>Cancel</span>
-                </div>
-              )}
+                  {confirmSkip ? (
+                    <button className="jp-btn" style={{ background:"rgba(255,150,0,0.18)", borderColor:"rgba(255,150,0,0.4)", color:"#fbbf24", gridColumn:"span 2" }} onClick={() => { socket.emit("host:skipRound"); setConfirmSkip(false); }}>Confirm Skip Round</button>
+                  ) : (
+                    <button className="jp-btn" style={{ background:"rgba(255,150,0,0.08)", borderColor:"rgba(255,150,0,0.25)", color:"#fbbf24" }} disabled={phase==="lobby"||!board} onClick={() => setConfirmSkip(true)}>Skip Round</button>
+                  )}
 
-              <button className="jp-btn" disabled={!board || phase !== "board"} onClick={() => { setThemeName(""); setShowSaveTheme(true); }}
-                style={{ background:"rgba(99,179,237,0.12)", borderColor:"rgba(99,179,237,0.35)", color:"#90cdf4" }}>
-                Save Theme
-              </button>
-              <button className="jp-btn" onClick={() => { setThemeSearch(""); setShowLoadTheme(true); }}
-                style={{ background:"rgba(99,179,237,0.12)", borderColor:"rgba(99,179,237,0.35)", color:"#90cdf4" }}>
-                Load Theme
-              </button>
+                  {pickingDD ? (
+                    <button className="jp-btn" style={{ background:"rgba(255,221,117,0.18)", borderColor:"rgba(255,221,117,0.5)", color:"#ffdd75" }} onClick={() => socket.emit("host:cancelPickDD")}>Cancel DD Pick</button>
+                  ) : (
+                    <button className="jp-btn" disabled={phase!=="board"||!board} onClick={() => socket.emit("host:clearDDs")}>Change Daily Double</button>
+                  )}
+
+                  {confirmSkip && <div style={{ fontSize:11, color:"rgba(246,247,255,0.4)", gridColumn:"span 2", textAlign:"center", marginTop:-4 }}>Skips to next round <span style={{ marginLeft:8, color:"#ffdd75", cursor:"pointer" }} onClick={() => setConfirmSkip(false)}>Cancel</span></div>}
+
+                  <button className="jp-btn" disabled={!board||phase!=="board"} onClick={() => { setThemeName(""); setShowSaveTheme(true); }} style={{ background:"rgba(99,179,237,0.12)", borderColor:"rgba(99,179,237,0.35)", color:"#90cdf4" }}>Save Theme</button>
+                  <button className="jp-btn" onClick={() => { setThemeSearch(""); setShowLoadTheme(true); }} style={{ background:"rgba(99,179,237,0.12)", borderColor:"rgba(99,179,237,0.35)", color:"#90cdf4" }}>Load Theme</button>
+                </>
+              )}
 
               <button className="jp-btn" style={{ background:"rgba(160,120,255,0.10)", borderColor:"rgba(160,120,255,0.3)", color:"#c4b5fd" }} onClick={() => setShowHistory(true)}>Game History</button>
               <button className="jp-btn" style={{ background:"rgba(34,197,94,0.10)", borderColor:"rgba(34,197,94,0.3)", color:"#86efac" }} onClick={() => setShowSounds(true)}>Sound Levels</button>
 
-              {paused ? (
-                <button className="jp-btn" style={{ gridColumn:"span 2", background:"rgba(33,197,93,0.15)", borderColor:"rgba(33,197,93,0.4)", color:"#86efac", fontWeight:900 }}
-                  onClick={() => socket.emit("host:resume")}>
-                  Resume Game
-                </button>
-              ) : (
-                <button className="jp-btn" style={{ gridColumn:"span 2", background:"rgba(255,221,117,0.10)", borderColor:"rgba(255,221,117,0.3)", color:"#ffdd75" }}
-                  onClick={() => setPauseMenuOpen(true)}>
-                  Pause Game
-                </button>
+              {phase !== "pregame" && (
+                paused ? (
+                  <button className="jp-btn" style={{ gridColumn:"span 2", background:"rgba(33,197,93,0.15)", borderColor:"rgba(33,197,93,0.4)", color:"#86efac", fontWeight:900 }} onClick={() => socket.emit("host:resume")}>Resume Game</button>
+                ) : (
+                  <button className="jp-btn" style={{ gridColumn:"span 2", background:"rgba(255,221,117,0.10)", borderColor:"rgba(255,221,117,0.3)", color:"#ffdd75" }} onClick={() => setPauseMenuOpen(true)}>Pause Game</button>
+                )
               )}
 
               {confirmReset ? (
-                <button className="jp-btn jp-btnBad" style={{ gridColumn:"span 2" }}
-                  onClick={() => { socket.emit("host:resetGame"); setConfirmReset(false); }}>
-                  Confirm Reset
-                </button>
+                <button className="jp-btn jp-btnBad" style={{ gridColumn:"span 2" }} onClick={() => { socket.emit("host:resetGame"); setConfirmReset(false); }}>Confirm Reset</button>
               ) : (
-                <button className="jp-btn" style={{ background:"rgba(239,68,68,0.12)", borderColor:"rgba(239,68,68,0.28)", color:"#fca5a5", gridColumn:"span 2" }}
-                  onClick={() => setConfirmReset(true)}>
-                  Reset Game
-                </button>
+                <button className="jp-btn" style={{ background:"rgba(239,68,68,0.12)", borderColor:"rgba(239,68,68,0.28)", color:"#fca5a5", gridColumn:"span 2" }} onClick={() => setConfirmReset(true)}>Reset Game</button>
               )}
-
             </div>
-            {confirmReset && (
-              <div style={{ fontSize:11, color:"rgba(246,247,255,0.4)", marginTop:8, textAlign:"center" }}>
-                Tap Confirm Reset to wipe all scores and players
-                <span style={{ marginLeft:8, color:"#ffdd75", cursor:"pointer" }} onClick={() => setConfirmReset(false)}>Cancel</span>
-              </div>
-            )}
+            {confirmReset && <div style={{ fontSize:11, color:"rgba(246,247,255,0.4)", marginTop:8, textAlign:"center" }}>Tap Confirm Reset to wipe all scores and players <span style={{ marginLeft:8, color:"#ffdd75", cursor:"pointer" }} onClick={() => setConfirmReset(false)}>Cancel</span></div>}
           </div>
 
-          {/* Final Jaypardy setup modal */}
+          {/* Final Jaypardy setup */}
           {showFinalSetup && (
             <div style={{ position:"fixed", inset:0, zIndex:999, background:"rgba(0,0,0,0.75)", display:"flex", alignItems:"center", justifyContent:"center", padding:24 }}>
               <div style={{ background:"#090f3a", border:"1px solid rgba(255,255,255,0.15)", borderRadius:20, padding:24, width:"100%", maxWidth:420 }}>
                 <div style={{ fontSize:22, fontWeight:900, color:"#ffdd75", marginBottom:16, textAlign:"center" }}>Final Jaypardy</div>
-                <input autoFocus value={finalSearch} onChange={(e) => setFinalSearch(e.target.value)} placeholder="Search categories…"
-                  style={{ width:"100%", padding:"11px 14px", fontSize:14, borderRadius:10, border:"1px solid rgba(255,255,255,0.2)", background:"rgba(255,255,255,0.08)", color:"#f6f7ff", outline:"none", marginBottom:10, boxSizing:"border-box" }} />
+                <input autoFocus value={finalSearch} onChange={(e) => setFinalSearch(e.target.value)} placeholder="Search categories…" style={{ width:"100%", padding:"11px 14px", fontSize:14, borderRadius:10, border:"1px solid rgba(255,255,255,0.2)", background:"rgba(255,255,255,0.08)", color:"#f6f7ff", outline:"none", marginBottom:10, boxSizing:"border-box" }} />
                 <div style={{ height:220, overflowY:"auto", border:"1px solid rgba(255,255,255,0.10)", borderRadius:10, background:"rgba(0,0,0,0.2)", marginBottom:10 }}>
                   {allCategories.filter((c) => c.toLowerCase().includes(finalSearch.toLowerCase())).map((cat) => (
-                    <div key={cat} onClick={() => setFinalCategory(cat)}
-                      style={{ padding:"10px 14px", fontSize:13, fontWeight: finalCategory === cat ? 900 : 600, color: finalCategory === cat ? "#ffdd75" : "#f6f7ff", background: finalCategory === cat ? "rgba(255,221,117,0.15)" : "transparent", borderBottom:"1px solid rgba(255,255,255,0.05)", cursor:"pointer" }}>
-                      {cat}
-                    </div>
+                    <div key={cat} onClick={() => setFinalCategory(cat)} style={{ padding:"10px 14px", fontSize:13, fontWeight:finalCategory===cat?900:600, color:finalCategory===cat?"#ffdd75":"#f6f7ff", background:finalCategory===cat?"rgba(255,221,117,0.15)":"transparent", borderBottom:"1px solid rgba(255,255,255,0.05)", cursor:"pointer" }}>{cat}</div>
                   ))}
                 </div>
-                <div style={{ fontSize:12, color:"rgba(246,247,255,0.45)", textAlign:"center", marginBottom:14 }}>
-                  Selected: <span style={{ color:"#ffdd75", fontWeight:700 }}>{finalCategory}</span>
-                </div>
+                <div style={{ fontSize:12, color:"rgba(246,247,255,0.45)", textAlign:"center", marginBottom:14 }}>Selected: <span style={{ color:"#ffdd75", fontWeight:700 }}>{finalCategory}</span></div>
                 <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
                   <button className="jp-btn" onClick={() => { setShowFinalSetup(false); setFinalSearch(""); }}>Cancel</button>
-                  <button className="jp-btn" style={{ background:"rgba(255,221,117,0.2)", borderColor:"rgba(255,221,117,0.5)", color:"#ffdd75", fontWeight:900 }}
-                    onClick={() => { socket.emit("host:startFinal", { category: finalCategory }); setShowFinalSetup(false); setFinalSearch(""); }}>
-                    Start Final
-                  </button>
+                  <button className="jp-btn" style={{ background:"rgba(255,221,117,0.2)", borderColor:"rgba(255,221,117,0.5)", color:"#ffdd75", fontWeight:900 }} onClick={() => { socket.emit("host:startFinal", { category:finalCategory }); setShowFinalSetup(false); setFinalSearch(""); }}>Start Final</button>
                 </div>
               </div>
             </div>
@@ -634,18 +569,72 @@ export default function HostScreen({ state }) {
         </aside>
       </div>
 
-      {/* Pause menu modal */}
+      {/* ── Game Config Modal ── */}
+      {showGameConfig && (
+        <div style={{ position:"fixed", inset:0, zIndex:999, background:"rgba(0,0,0,0.85)", display:"flex", alignItems:"center", justifyContent:"center", padding:24 }}>
+          <div style={{ background:"#090f3a", border:"1px solid rgba(255,255,255,0.15)", borderRadius:20, padding:28, width:"100%", maxWidth:480 }}>
+            <div style={{ fontSize:24, fontWeight:900, color:"#ffdd75", marginBottom:24, textAlign:"center" }}>Game Setup</div>
+
+            {/* Max Players */}
+            <div style={{ marginBottom:20 }}>
+              <div style={{ fontSize:13, fontWeight:700, color:"rgba(246,247,255,0.7)", marginBottom:10 }}>Max Players: <span style={{ color:"#ffdd75" }}>{cfgMaxPlayers}</span></div>
+              <input type="range" min={2} max={10} value={cfgMaxPlayers} onChange={(e) => setCfgMaxPlayers(parseInt(e.target.value))}
+                style={{ width:"100%", accentColor:"#ffdd75", cursor:"pointer" }} />
+              <div style={{ display:"flex", justifyContent:"space-between", fontSize:11, color:"rgba(246,247,255,0.3)", marginTop:2 }}><span>2</span><span>10</span></div>
+            </div>
+
+            {/* Number of Teams */}
+            <div style={{ marginBottom:20 }}>
+              <div style={{ fontSize:13, fontWeight:700, color:"rgba(246,247,255,0.7)", marginBottom:10 }}>Number of Teams: <span style={{ color:"#ffdd75" }}>{cfgNumTeams}</span></div>
+              <div style={{ display:"flex", gap:8 }}>
+                {[2,3,4,5,6].map((n) => (
+                  <button key={n} onClick={() => setCfgNumTeams(n)} style={{ flex:1, padding:"10px 0", borderRadius:10, border:cfgNumTeams===n?"2px solid #ffdd75":"1px solid rgba(255,255,255,0.15)", background:cfgNumTeams===n?"rgba(255,221,117,0.15)":"rgba(255,255,255,0.05)", color:cfgNumTeams===n?"#ffdd75":"rgba(246,247,255,0.6)", fontWeight:cfgNumTeams===n?900:600, fontSize:16, cursor:"pointer" }}>{n}</button>
+                ))}
+              </div>
+            </div>
+
+            {/* Theme */}
+            <div style={{ marginBottom:20 }}>
+              <div style={{ fontSize:13, fontWeight:700, color:"rgba(246,247,255,0.7)", marginBottom:10 }}>Theme (optional)</div>
+              <select value={cfgTheme} onChange={(e) => setCfgTheme(e.target.value)}
+                style={{ width:"100%", padding:"12px 14px", fontSize:14, borderRadius:10, border:"1px solid rgba(255,255,255,0.15)", background:"rgba(255,255,255,0.07)", color:"#f6f7ff", outline:"none" }}>
+                <option value="">Random categories</option>
+                {Object.keys(savedThemes).map((name) => <option key={name} value={name}>{name}</option>)}
+              </select>
+            </div>
+
+            {/* Buzzer type placeholder */}
+            <div style={{ marginBottom:24 }}>
+              <div style={{ fontSize:13, fontWeight:700, color:"rgba(246,247,255,0.7)", marginBottom:10 }}>Buzzer Type</div>
+              <div style={{ display:"flex", gap:8 }}>
+                <button style={{ flex:1, padding:"10px 0", borderRadius:10, border:"2px solid #ffdd75", background:"rgba(255,221,117,0.15)", color:"#ffdd75", fontWeight:900, fontSize:14, cursor:"pointer" }}>Standard</button>
+                <button style={{ flex:1, padding:"10px 0", borderRadius:10, border:"1px solid rgba(255,255,255,0.1)", background:"rgba(255,255,255,0.04)", color:"rgba(246,247,255,0.3)", fontWeight:600, fontSize:14, cursor:"not-allowed" }} disabled>Puzzle Buzzer (soon)</button>
+              </div>
+            </div>
+
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
+              <button className="jp-btn" onClick={() => setShowGameConfig(false)}>Cancel</button>
+              <button className="jp-btn" style={{ background:"rgba(255,221,117,0.2)", borderColor:"rgba(255,221,117,0.5)", color:"#ffdd75", fontWeight:900 }}
+                onClick={() => {
+                  socket.emit("host:configureGame", { maxPlayers:cfgMaxPlayers, teamPlay:true, numTeams:cfgNumTeams, theme:cfgTheme||null, buzzerType:"standard" });
+                  setShowGameConfig(false);
+                }}>
+                Open Lobby →
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Pause menu */}
       {pauseMenuOpen && (
         <div style={{ position:"fixed", inset:0, zIndex:999, background:"rgba(0,0,0,0.8)", display:"flex", alignItems:"center", justifyContent:"center", padding:24 }}>
           <div style={{ background:"#090f3a", border:"1px solid rgba(255,255,255,0.15)", borderRadius:20, padding:28, width:"100%", maxWidth:400 }}>
             <div style={{ fontSize:20, fontWeight:900, color:"#ffdd75", marginBottom:16, textAlign:"center" }}>Pause Game</div>
             <div style={{ fontSize:13, color:"rgba(246,247,255,0.5)", textAlign:"center", marginBottom:20 }}>Choose a message to show on all screens</div>
             <div style={{ display:"flex", flexDirection:"column", gap:10, marginBottom:20 }}>
-              {["Stand By", "We'll be right back", "Technical Difficulties", "Game on Timeout"].map((msg) => (
-                <button key={msg} onClick={() => { socket.emit("host:pause", { message: msg }); setPauseMenuOpen(false); }}
-                  style={{ padding:"16px", borderRadius:12, fontSize:15, fontWeight:700, border:"1px solid rgba(255,221,117,0.3)", background:"rgba(255,221,117,0.08)", color:"#ffdd75", cursor:"pointer", textAlign:"left" }}>
-                  {msg}
-                </button>
+              {["Stand By","We'll be right back","Technical Difficulties","Game on Timeout"].map((msg) => (
+                <button key={msg} onClick={() => { socket.emit("host:pause", { message:msg }); setPauseMenuOpen(false); }} style={{ padding:"16px", borderRadius:12, fontSize:15, fontWeight:700, border:"1px solid rgba(255,221,117,0.3)", background:"rgba(255,221,117,0.08)", color:"#ffdd75", cursor:"pointer", textAlign:"left" }}>{msg}</button>
               ))}
             </div>
             <button className="jp-btn" style={{ width:"100%" }} onClick={() => setPauseMenuOpen(false)}>Cancel</button>
@@ -653,7 +642,7 @@ export default function HostScreen({ state }) {
         </div>
       )}
 
-      {/* Game History modal */}
+      {/* Game History */}
       {showHistory && (
         <div style={{ position:"fixed", inset:0, zIndex:999, background:"rgba(0,0,0,0.75)", display:"flex", alignItems:"center", justifyContent:"center", padding:24 }}>
           <div style={{ background:"#090f3a", border:"1px solid rgba(255,255,255,0.15)", borderRadius:20, padding:24, width:"100%", maxWidth:560, maxHeight:"80vh", display:"flex", flexDirection:"column" }}>
@@ -662,24 +651,22 @@ export default function HostScreen({ state }) {
               <button className="jp-btn" style={{ fontSize:12, padding:"4px 12px" }} onClick={() => setShowHistory(false)}>Close</button>
             </div>
             <div style={{ flex:1, overflowY:"auto", display:"flex", flexDirection:"column", gap:6 }}>
-              {gameLog.length === 0 ? (
-                <div style={{ textAlign:"center", color:"rgba(246,247,255,0.35)", fontSize:14, padding:24 }}>No events yet.</div>
-              ) : (
+              {gameLog.length === 0 ? <div style={{ textAlign:"center", color:"rgba(246,247,255,0.35)", fontSize:14, padding:24 }}>No events yet.</div> : (
                 [...gameLog].reverse().map((entry, i) => (
-                  <div key={i} style={{ padding:"10px 14px", borderRadius:10, background: entry.result === "correct" ? `${entry.teamColor}18` : entry.result === "wrong" ? "rgba(239,68,68,0.10)" : "rgba(255,255,255,0.04)", border:`1px solid ${entry.result === "correct" ? entry.teamColor + "44" : entry.result === "wrong" ? "rgba(239,68,68,0.25)" : "rgba(255,255,255,0.07)"}` }}>
+                  <div key={i} style={{ padding:"10px 14px", borderRadius:10, background:entry.result==="correct"?`${entry.teamColor}18`:entry.result==="wrong"?"rgba(239,68,68,0.10)":"rgba(255,255,255,0.04)", border:`1px solid ${entry.result==="correct"?entry.teamColor+"44":entry.result==="wrong"?"rgba(239,68,68,0.25)":"rgba(255,255,255,0.07)"}` }}>
                     <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:4 }}>
                       <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-                        <span style={{ fontSize:11, fontWeight:900, padding:"2px 7px", borderRadius:999, background: entry.result === "correct" ? "#21c55d33" : entry.result === "wrong" ? "#ef444433" : "rgba(255,255,255,0.08)", color: entry.result === "correct" ? "#21c55d" : entry.result === "wrong" ? "#fca5a5" : "rgba(246,247,255,0.5)" }}>{entry.result.toUpperCase()}</span>
+                        <span style={{ fontSize:11, fontWeight:900, padding:"2px 7px", borderRadius:999, background:entry.result==="correct"?"#21c55d33":entry.result==="wrong"?"#ef444433":"rgba(255,255,255,0.08)", color:entry.result==="correct"?"#21c55d":entry.result==="wrong"?"#fca5a5":"rgba(246,247,255,0.5)" }}>{entry.result.toUpperCase()}</span>
                         <span style={{ fontSize:12, fontWeight:700, color:"rgba(246,247,255,0.5)" }}>{entry.category} — ${entry.value}</span>
                       </div>
                       <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-                        {entry.scoreDelta && <span style={{ fontSize:13, fontWeight:900, color: entry.result === "correct" ? "#21c55d" : "#fca5a5" }}>{entry.scoreDelta}</span>}
+                        {entry.scoreDelta && <span style={{ fontSize:13, fontWeight:900, color:entry.result==="correct"?"#21c55d":"#fca5a5" }}>{entry.scoreDelta}</span>}
                         <span style={{ fontSize:11, color:"rgba(246,247,255,0.3)" }}>{entry.ts}</span>
                       </div>
                     </div>
                     <div style={{ fontSize:13, color:"#f6f7ff", marginBottom:2 }}>{entry.question}</div>
                     <div style={{ fontSize:12, color:"#ffdd75", fontStyle:"italic" }}>{entry.answer}</div>
-                    {entry.player && <div style={{ fontSize:11, color: entry.teamColor ?? "rgba(246,247,255,0.45)", marginTop:4, fontWeight:700 }}>{entry.player} — {entry.team}</div>}
+                    {entry.player && <div style={{ fontSize:11, color:entry.teamColor??"rgba(246,247,255,0.45)", marginTop:4, fontWeight:700 }}>{entry.player} — {entry.team}</div>}
                   </div>
                 ))
               )}
@@ -688,14 +675,13 @@ export default function HostScreen({ state }) {
         </div>
       )}
 
-      {/* Save Theme modal */}
+      {/* Save Theme */}
       {showSaveTheme && (
         <div style={{ position:"fixed", inset:0, zIndex:999, background:"rgba(0,0,0,0.75)", display:"flex", alignItems:"center", justifyContent:"center", padding:24 }}>
           <div style={{ background:"#090f3a", border:"1px solid rgba(255,255,255,0.15)", borderRadius:20, padding:24, width:"100%", maxWidth:400 }}>
             <div style={{ fontSize:20, fontWeight:900, color:"#90cdf4", marginBottom:6, textAlign:"center" }}>Save Theme</div>
-            <div style={{ fontSize:12, color:"rgba(246,247,255,0.45)", textAlign:"center", marginBottom:16 }}>Saving: {board?.columns.map((c) => c.title).join(", ")}</div>
-            <input autoFocus value={themeName} onChange={(e) => setThemeName(e.target.value)} onKeyDown={(e) => e.key === "Enter" && saveTheme()} placeholder="e.g. TV Theme Night" maxLength={40}
-              style={{ width:"100%", padding:"12px 14px", fontSize:15, borderRadius:10, border:"1px solid rgba(255,255,255,0.2)", background:"rgba(255,255,255,0.08)", color:"#f6f7ff", outline:"none", marginBottom:14, boxSizing:"border-box" }} />
+            <div style={{ fontSize:12, color:"rgba(246,247,255,0.45)", textAlign:"center", marginBottom:16 }}>Saving: {board?.columns.map((c)=>c.title).join(", ")}</div>
+            <input autoFocus value={themeName} onChange={(e) => setThemeName(e.target.value)} onKeyDown={(e) => e.key==="Enter"&&saveTheme()} placeholder="e.g. TV Theme Night" maxLength={40} style={{ width:"100%", padding:"12px 14px", fontSize:15, borderRadius:10, border:"1px solid rgba(255,255,255,0.2)", background:"rgba(255,255,255,0.08)", color:"#f6f7ff", outline:"none", marginBottom:14, boxSizing:"border-box" }} />
             <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
               <button className="jp-btn" onClick={() => setShowSaveTheme(false)}>Cancel</button>
               <button className="jp-btn" disabled={!themeName.trim()} style={{ background:"rgba(99,179,237,0.2)", borderColor:"rgba(99,179,237,0.5)", color:"#90cdf4", fontWeight:900 }} onClick={saveTheme}>Save</button>
@@ -704,23 +690,17 @@ export default function HostScreen({ state }) {
         </div>
       )}
 
-      {/* Load Theme modal */}
+      {/* Load Theme */}
       {showLoadTheme && (
         <div style={{ position:"fixed", inset:0, zIndex:999, background:"rgba(0,0,0,0.75)", display:"flex", alignItems:"center", justifyContent:"center", padding:24 }}>
           <div style={{ background:"#090f3a", border:"1px solid rgba(255,255,255,0.15)", borderRadius:20, padding:24, width:"100%", maxWidth:420 }}>
             <div style={{ fontSize:20, fontWeight:900, color:"#90cdf4", marginBottom:16, textAlign:"center" }}>Load Theme</div>
-            <input autoFocus value={themeSearch} onChange={(e) => setThemeSearch(e.target.value)} placeholder="Search themes…"
-              style={{ width:"100%", padding:"11px 14px", fontSize:14, borderRadius:10, border:"1px solid rgba(255,255,255,0.2)", background:"rgba(255,255,255,0.08)", color:"#f6f7ff", outline:"none", marginBottom:10, boxSizing:"border-box" }} />
+            <input autoFocus value={themeSearch} onChange={(e) => setThemeSearch(e.target.value)} placeholder="Search themes…" style={{ width:"100%", padding:"11px 14px", fontSize:14, borderRadius:10, border:"1px solid rgba(255,255,255,0.2)", background:"rgba(255,255,255,0.08)", color:"#f6f7ff", outline:"none", marginBottom:10, boxSizing:"border-box" }} />
             <div style={{ height:260, overflowY:"auto", border:"1px solid rgba(255,255,255,0.10)", borderRadius:10, background:"rgba(0,0,0,0.2)", marginBottom:14 }}>
-              {Object.keys(savedThemes).length === 0 ? (
-                <div style={{ padding:20, textAlign:"center", color:"rgba(246,247,255,0.4)", fontSize:13 }}>No saved themes yet.</div>
-              ) : (
+              {Object.keys(savedThemes).length === 0 ? <div style={{ padding:20, textAlign:"center", color:"rgba(246,247,255,0.4)", fontSize:13 }}>No saved themes yet.</div> : (
                 Object.keys(savedThemes).filter((name) => name.toLowerCase().includes(themeSearch.toLowerCase())).map((name) => (
                   <div key={name} style={{ display:"flex", alignItems:"center", gap:10, padding:"10px 14px", borderBottom:"1px solid rgba(255,255,255,0.05)" }}>
-                    <div style={{ flex:1 }}>
-                      <div style={{ fontWeight:900, fontSize:14, color:"#f6f7ff", marginBottom:3 }}>{name}</div>
-                      <div style={{ fontSize:11, color:"rgba(246,247,255,0.4)", lineHeight:1.4 }}>{savedThemes[name].join(" · ")}</div>
-                    </div>
+                    <div style={{ flex:1 }}><div style={{ fontWeight:900, fontSize:14, color:"#f6f7ff", marginBottom:3 }}>{name}</div><div style={{ fontSize:11, color:"rgba(246,247,255,0.4)", lineHeight:1.4 }}>{savedThemes[name].join(" · ")}</div></div>
                     <button onClick={() => loadTheme(name)} style={{ padding:"6px 14px", borderRadius:8, border:"1px solid rgba(99,179,237,0.4)", background:"rgba(99,179,237,0.15)", color:"#90cdf4", fontWeight:900, fontSize:12, cursor:"pointer", flexShrink:0 }}>Load</button>
                     <button onClick={() => deleteTheme(name)} style={{ padding:"6px 10px", borderRadius:8, border:"1px solid rgba(239,68,68,0.3)", background:"rgba(239,68,68,0.10)", color:"#fca5a5", fontWeight:900, fontSize:12, cursor:"pointer", flexShrink:0 }}>✕</button>
                   </div>
@@ -732,22 +712,17 @@ export default function HostScreen({ state }) {
         </div>
       )}
 
-      {/* Sound Levels modal */}
+      {/* Sound Levels */}
       {showSounds && (
         <div style={{ position:"fixed", inset:0, zIndex:999, background:"rgba(0,0,0,0.75)", display:"flex", alignItems:"center", justifyContent:"center", padding:24 }}>
           <div style={{ background:"#090f3a", border:"1px solid rgba(255,255,255,0.15)", borderRadius:20, padding:24, width:"100%", maxWidth:400 }}>
             <div style={{ fontSize:20, fontWeight:900, color:"#86efac", marginBottom:20, textAlign:"center" }}>Sound Levels</div>
-            {[
-              { key:"buzz", label:"Buzz In", fn: playBuzz },
-              { key:"correct", label:"Correct", fn: playCorrect },
-              { key:"wrong", label:"Wrong", fn: playWrong },
-              { key:"dailydouble", label:"Daily Double", fn: playDDChime },
-            ].map(({ key, label, fn }) => (
+            {[{key:"buzz",label:"Buzz In",fn:playBuzz},{key:"correct",label:"Correct",fn:playCorrect},{key:"wrong",label:"Wrong",fn:playWrong},{key:"dailydouble",label:"Daily Double",fn:playDDChime}].map(({key,label,fn}) => (
               <div key={key} style={{ marginBottom:18 }}>
                 <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:8 }}>
                   <div style={{ fontWeight:700, fontSize:14, color:"#f6f7ff" }}>{label}</div>
                   <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-                    <span style={{ fontSize:12, color:"rgba(246,247,255,0.5)", minWidth:32, textAlign:"right" }}>{Math.round(soundVols[key] * 100)}%</span>
+                    <span style={{ fontSize:12, color:"rgba(246,247,255,0.5)", minWidth:32, textAlign:"right" }}>{Math.round(soundVols[key]*100)}%</span>
                     <button onClick={fn} style={{ padding:"4px 10px", borderRadius:6, fontSize:11, fontWeight:700, border:"1px solid rgba(134,239,172,0.3)", background:"rgba(34,197,94,0.1)", color:"#86efac", cursor:"pointer" }}>Test</button>
                   </div>
                 </div>
@@ -760,27 +735,17 @@ export default function HostScreen({ state }) {
         </div>
       )}
 
-      {/* Swap Category modal */}
+      {/* Swap Category */}
       {swapMenu && (
         <div style={{ position:"fixed", inset:0, zIndex:9999, background:"rgba(0,0,0,0.75)", display:"flex", alignItems:"center", justifyContent:"center", padding:24 }}>
           <div style={{ background:"#090f3a", border:"1px solid rgba(255,255,255,0.15)", borderRadius:20, padding:24, width:"100%", maxWidth:420 }}>
             <div style={{ fontSize:18, fontWeight:900, color:"#ffdd75", marginBottom:4, textAlign:"center" }}>Swap Category</div>
-            <div style={{ fontSize:12, color:"rgba(246,247,255,0.45)", textAlign:"center", marginBottom:14 }}>
-              Replacing: <span style={{ color:"#fff", fontWeight:700 }}>{board?.columns[swapMenu.colIndex]?.title}</span>
-            </div>
-            <input autoFocus value={swapSearch} onChange={(e) => setSwapSearch(e.target.value)} placeholder="Search categories…"
-              style={{ width:"100%", padding:"11px 14px", fontSize:14, borderRadius:10, border:"1px solid rgba(255,255,255,0.2)", background:"rgba(255,255,255,0.08)", color:"#f6f7ff", outline:"none", marginBottom:10, boxSizing:"border-box" }} />
+            <div style={{ fontSize:12, color:"rgba(246,247,255,0.45)", textAlign:"center", marginBottom:14 }}>Replacing: <span style={{ color:"#fff", fontWeight:700 }}>{board?.columns[swapMenu.colIndex]?.title}</span></div>
+            <input autoFocus value={swapSearch} onChange={(e) => setSwapSearch(e.target.value)} placeholder="Search categories…" style={{ width:"100%", padding:"11px 14px", fontSize:14, borderRadius:10, border:"1px solid rgba(255,255,255,0.2)", background:"rgba(255,255,255,0.08)", color:"#f6f7ff", outline:"none", marginBottom:10, boxSizing:"border-box" }} />
             <div style={{ height:240, overflowY:"auto", border:"1px solid rgba(255,255,255,0.10)", borderRadius:10, background:"rgba(0,0,0,0.2)", marginBottom:14 }}>
-              {availableCategories.filter((c) => c.toLowerCase().includes(swapSearch.toLowerCase())).length === 0 ? (
-                <div style={{ padding:"16px", textAlign:"center", color:"rgba(246,247,255,0.4)", fontSize:13 }}>No matches</div>
-              ) : (
+              {availableCategories.filter((c) => c.toLowerCase().includes(swapSearch.toLowerCase())).length === 0 ? <div style={{ padding:"16px", textAlign:"center", color:"rgba(246,247,255,0.4)", fontSize:13 }}>No matches</div> : (
                 availableCategories.filter((c) => c.toLowerCase().includes(swapSearch.toLowerCase())).map((cat) => (
-                  <div key={cat} onClick={() => { doSwap(cat); setSwapSearch(""); }}
-                    style={{ padding:"10px 14px", fontSize:13, fontWeight:600, color:"#f6f7ff", background:"transparent", borderBottom:"1px solid rgba(255,255,255,0.05)", cursor:"pointer" }}
-                    onMouseEnter={(e) => e.currentTarget.style.background = "rgba(255,255,255,0.08)"}
-                    onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}>
-                    {cat}
-                  </div>
+                  <div key={cat} onClick={() => { doSwap(cat); setSwapSearch(""); }} style={{ padding:"10px 14px", fontSize:13, fontWeight:600, color:"#f6f7ff", background:"transparent", borderBottom:"1px solid rgba(255,255,255,0.05)", cursor:"pointer" }} onMouseEnter={(e) => e.currentTarget.style.background="rgba(255,255,255,0.08)"} onMouseLeave={(e) => e.currentTarget.style.background="transparent"}>{cat}</div>
                 ))
               )}
             </div>
@@ -793,10 +758,9 @@ export default function HostScreen({ state }) {
   );
 }
 
-// ─── Shared styles ────────────────────────────────────────────────────────────
 const adjBtn = {
-  background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.12)",
-  color: "#f6f7ff", borderRadius: 4, width: 20, height: 20, fontSize: 13,
-  fontWeight: 900, cursor: "pointer", display: "flex", alignItems: "center",
-  justifyContent: "center", lineHeight: 1, flexShrink: 0,
+  background:"rgba(255,255,255,0.08)", border:"1px solid rgba(255,255,255,0.12)",
+  color:"#f6f7ff", borderRadius:4, width:20, height:20, fontSize:13,
+  fontWeight:900, cursor:"pointer", display:"flex", alignItems:"center",
+  justifyContent:"center", lineHeight:1, flexShrink:0,
 };
