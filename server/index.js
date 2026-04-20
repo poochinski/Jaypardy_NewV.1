@@ -118,6 +118,21 @@ const VALID_EMOJIS = new Set([
   "🦊","🐸","🎸","🚀","🌊","🎲","🦁","🐯","🍀","💎",
 ]);
 
+// ─── Latency tracking ─────────────────────────────────────────────────────────
+// Maps socket.id → smoothed RTT in ms
+const playerLatency = {};
+const PING_INTERVAL  = 5000;
+const MAX_LATENCY    = 500;
+const LOCKOUT_WINDOW = 100;
+
+// ─── Player registry — persists across reconnections ─────────────────────────
+// Maps persistent playerId → { name, emoji, teamId }
+// This survives socket disconnects so players can rejoin seamlessly
+const playerRegistry = {};
+
+// Maps socket.id → persistent playerId (for reverse lookup)
+const socketToPlayer = {};
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function pickRandom(arr, n) {
@@ -217,7 +232,7 @@ function freshState() {
     players:         [],
     teams:           TEAMS.map((t) => ({ ...t, score: 0 })),
     controlTeamId:   null,
-    controlPlayerId: null,  // ── NEW: tracks which specific player controls the board
+    controlPlayerId: null,
     board:           null,
     currentClue:     null,
     wager:           null,
@@ -248,9 +263,6 @@ function markClueUsed(state) {
   };
 }
 
-// ─── Board control helpers ────────────────────────────────────────────────────
-
-// Pick a random assigned player to start with board control
 function pickRandomControlPlayer(players) {
   const assigned = players.filter((p) => p.teamId);
   if (assigned.length === 0) return { playerId: null, teamId: null };
@@ -258,21 +270,68 @@ function pickRandomControlPlayer(players) {
   return { playerId: p.id, teamId: p.teamId };
 }
 
-// Get the player who currently controls the board
-// Falls back gracefully if controlPlayerId is disconnected
 function getControlPlayer(state) {
   if (state.controlPlayerId) {
     const p = state.players.find((x) => x.id === state.controlPlayerId);
     if (p) return p;
   }
-  // Fallback: first player on control team
   if (state.controlTeamId) {
     const p = state.players.find((x) => x.teamId === state.controlTeamId);
     if (p) return p;
   }
-  // Final fallback: any assigned player
   return state.players.find((p) => p.teamId) ?? null;
 }
+
+// ─── Latency compensation ─────────────────────────────────────────────────────
+function compensatedTapTime(socketId, serverArrivalTime) {
+  const latency = playerLatency[socketId] ?? 50;
+  const halfRtt = Math.min(latency / 2, MAX_LATENCY);
+  return serverArrivalTime - halfRtt;
+}
+
+// ─── Pending buzz window (Level 3) ───────────────────────────────────────────
+let pendingBuzzes   = [];
+let buzzWindowTimer = null;
+
+function clearBuzzWindow() {
+  if (buzzWindowTimer) { clearTimeout(buzzWindowTimer); buzzWindowTimer = null; }
+  pendingBuzzes = [];
+}
+
+function resolveBuzz() {
+  if (pendingBuzzes.length === 0) return;
+  pendingBuzzes.sort((a, b) => a.tapTime - b.tapTime);
+  const winner = pendingBuzzes[0];
+  pendingBuzzes = [];
+  buzzWindowTimer = null;
+
+  const p = state.players.find((x) => x.id === winner.socketId);
+  if (!p || !p.teamId) return;
+  if (state.phase !== "clue" && state.phase !== "dailyDoubleClue") return;
+  if (state.buzz.locked) return;
+
+  state = {
+    ...state,
+    buzz: {
+      locked:    true,
+      playerId:  p.id,
+      teamId:    p.teamId,
+      name:      p.name,
+      emoji:     p.emoji,
+      timestamp: winner.tapTime,
+    },
+  };
+  emitState();
+}
+
+// ─── Latency broadcast to host ────────────────────────────────────────────────
+// Sends { socketId: rtt } map to all host screens every 3 seconds
+const LATENCY_BROADCAST_INTERVAL = 3000;
+setInterval(() => {
+  if (Object.keys(playerLatency).length > 0) {
+    io.emit("latency:update", { ...playerLatency });
+  }
+}, LATENCY_BROADCAST_INTERVAL);
 
 let state = freshState();
 function emitState() { io.emit("state:update", state); }
@@ -283,6 +342,20 @@ io.on("connection", (socket) => {
   console.log(`[+] ${socket.id}`);
   socket.emit("state:update", state);
   getAllThemes().then((t) => socket.emit("themes:update", t)).catch(() => {});
+
+  // ─── Latency ping/pong ────────────────────────────────────────────────────
+  const doPing = () => {
+    if (!socket.connected) return;
+    socket.emit("ping:server", { t: Date.now() });
+  };
+  doPing();
+  const pingTimer = setInterval(doPing, PING_INTERVAL);
+
+  socket.on("pong:server", ({ t }) => {
+    const rtt  = Date.now() - t;
+    const prev = playerLatency[socket.id] ?? rtt;
+    playerLatency[socket.id] = Math.round(prev * 0.7 + rtt * 0.3);
+  });
 
   // ─── Themes ───────────────────────────────────────────────────────────────
   socket.on("host:getThemes", async () => {
@@ -312,46 +385,77 @@ io.on("connection", (socket) => {
   });
 
   // ─── Players ──────────────────────────────────────────────────────────────
-  socket.on("player:join", ({ name, emoji }) => {
+  socket.on("player:join", ({ name, emoji, playerId }) => {
     if (state.players.length >= MAX_PLAYERS) return;
     const safeName  = (name || "").trim().slice(0, MAX_NAME_LENGTH);
     if (!safeName) return;
     const safeEmoji = VALID_EMOJIS.has(emoji) ? emoji : "😀";
-    const existing  = state.players.find((p) => p.id === socket.id);
+
+    // ── Reconnection logic ────────────────────────────────────────────────
+    // If the client sent a persistent playerId and we have their registry entry,
+    // restore their name/emoji/team automatically
+    let restoredTeamId = null;
+
+    if (playerId && playerRegistry[playerId]) {
+      const reg = playerRegistry[playerId];
+      restoredTeamId = reg.teamId ?? null;
+      console.log(`[reconnect] ${safeName} restored with team ${restoredTeamId}`);
+    }
+
+    // Register/update persistent player data
+    if (playerId) {
+      playerRegistry[playerId] = { name: safeName, emoji: safeEmoji, teamId: restoredTeamId };
+      socketToPlayer[socket.id] = playerId;
+    }
+
+    // If already in game as this socket, preserve teamId
+    const existingBySocket = state.players.find((p) => p.id === socket.id);
+    const finalTeamId = restoredTeamId ?? existingBySocket?.teamId ?? null;
+
     state = {
       ...state,
       players: [
         ...state.players.filter((p) => p.id !== socket.id),
-        { id: socket.id, name: safeName, emoji: safeEmoji, teamId: existing?.teamId ?? null },
+        { id: socket.id, name: safeName, emoji: safeEmoji, teamId: finalTeamId },
       ],
     };
+
+    // Auto-assign control if nobody has it yet and this player has a team
+    if (finalTeamId && !state.controlPlayerId) {
+      state = { ...state, controlPlayerId: socket.id, controlTeamId: finalTeamId };
+    }
+
     emitState();
   });
 
   socket.on("host:assignTeam", ({ playerId, teamId }) => {
-  if (teamId && !state.teams.some((t) => t.id === teamId)) return;
-  state = { ...state, players: state.players.map((p) => p.id === playerId ? { ...p, teamId: teamId || null } : p) };
-  // If no one has control yet and this player is being assigned a team, give them control
-  if (teamId && !state.controlPlayerId) {
-    state = { ...state, controlPlayerId: playerId, controlTeamId: teamId };
-  }
-  // If control player is being unassigned, clear control
-  if (!teamId && state.controlPlayerId === playerId) {
-    const next = state.players.find((p) => p.id !== playerId && p.teamId);
-    state = { ...state, controlPlayerId: next?.id ?? null, controlTeamId: next?.teamId ?? null };
-  }
-  emitState();
-});
+    if (teamId && !state.teams.some((t) => t.id === teamId)) return;
+    state = { ...state, players: state.players.map((p) => p.id === playerId ? { ...p, teamId: teamId || null } : p) };
+
+    // Update registry with new team assignment
+    const persistentId = socketToPlayer[playerId];
+    if (persistentId && playerRegistry[persistentId]) {
+      playerRegistry[persistentId].teamId = teamId || null;
+    }
+
+    // Auto-assign control if nobody has it
+    if (teamId && !state.controlPlayerId) {
+      state = { ...state, controlPlayerId: playerId, controlTeamId: teamId };
+    }
+    // Clear control if unassigned
+    if (!teamId && state.controlPlayerId === playerId) {
+      const next = state.players.find((p) => p.id !== playerId && p.teamId);
+      state = { ...state, controlPlayerId: next?.id ?? null, controlTeamId: next?.teamId ?? null };
+    }
+    emitState();
+  });
 
   // ─── Game flow ────────────────────────────────────────────────────────────
   socket.on("host:startJaypardy", async () => {
     if (state.phase !== "lobby") return;
     const board = await buildBoard(1);
     if (!board) return;
-
-    // ── Pick a random player to start with board control
     const { playerId, teamId } = pickRandomControlPlayer(state.players);
-
     state = {
       ...state,
       board,
@@ -387,7 +491,6 @@ io.on("connection", (socket) => {
     if (!state.board?.columns.every((col) => col.clues.every((c) => c.used))) return;
     const newBoard = await buildBoard(2);
     if (!newBoard) return;
-    // Control stays with whoever had it at end of round 1
     state = { ...state, board: newBoard, phase: "board", currentClue: null, wager: null, buzz: freshBuzz() };
     emitState();
   });
@@ -449,12 +552,10 @@ io.on("connection", (socket) => {
     const col  = state.board.columns[colIndex];
     const clue = col?.clues[rowIndex];
     if (!clue || clue.used) return;
-
-    // ── Use controlPlayerId for the wager player on Daily Double
     const controlPlayer = getControlPlayer(state);
     const wagerPlayerId = controlPlayer?.id ?? null;
     const wagerTeamId   = controlPlayer?.teamId ?? null;
-
+    clearBuzzWindow();
     state = {
       ...state,
       phase: clue.isDD ? "dailyDouble" : "clue",
@@ -462,8 +563,7 @@ io.on("connection", (socket) => {
         colIndex, rowIndex, clueId: clue.id,
         category: col.title, question: clue.question, answer: clue.answer,
         value: clue.value, isDD: clue.isDD,
-        wagerTeamId,
-        wagerPlayerId,
+        wagerTeamId, wagerPlayerId,
         wrongPlayers: [],
       },
       wager: null,
@@ -472,7 +572,6 @@ io.on("connection", (socket) => {
     emitState();
   });
 
-  // ── Allow host to manually override who controls the board ────────────────
   socket.on("host:setControl", ({ playerId }) => {
     const p = state.players.find((x) => x.id === playerId);
     if (!p || !p.teamId) return;
@@ -490,34 +589,28 @@ io.on("connection", (socket) => {
     emitState();
   });
 
-  // ─── Buzz ─────────────────────────────────────────────────────────────────
-  socket.on("player:buzz", ({ clientTimestamp } = {}) => {
+  // ─── Buzz (Level 2+3) ─────────────────────────────────────────────────────
+  socket.on("player:buzz", () => {
     if (state.phase !== "clue" && state.phase !== "dailyDoubleClue") return;
     if (state.buzz.locked) return;
-
     const p = state.players.find((x) => x.id === socket.id);
     if (!p || !p.teamId) return;
-
     if (state.phase === "dailyDoubleClue" && p.id !== state.currentClue?.wagerPlayerId) return;
-
     if (state.currentClue?.wrongPlayers?.includes(socket.id)) return;
 
-    state = {
-      ...state,
-      buzz: {
-        locked:          true,
-        playerId:        p.id,
-        teamId:          p.teamId,
-        name:            p.name,
-        emoji:           p.emoji,
-        timestamp:       Date.now(),
-        clientTimestamp: clientTimestamp ?? null,
-      },
-    };
-    emitState();
+    const serverArrival = Date.now();
+    const tapTime       = compensatedTapTime(socket.id, serverArrival);
+
+    if (buzzWindowTimer === null) {
+      pendingBuzzes   = [{ socketId: socket.id, tapTime }];
+      buzzWindowTimer = setTimeout(resolveBuzz, LOCKOUT_WINDOW);
+    } else {
+      pendingBuzzes.push({ socketId: socket.id, tapTime });
+    }
   });
 
   socket.on("host:resetBuzz", () => {
+    clearBuzzWindow();
     state = { ...state, buzz: freshBuzz() };
     emitState();
   });
@@ -525,76 +618,43 @@ io.on("connection", (socket) => {
   // ─── Mark answer ──────────────────────────────────────────────────────────
   socket.on("host:mark", ({ result }) => {
     if (!state.currentClue) return;
+    clearBuzzWindow();
 
     const isDD        = state.phase === "dailyDoubleClue";
     const scoreChange = isDD ? (state.wager?.amount ?? 0) : state.currentClue.value;
     const ts          = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
     const buzzer      = state.buzz.locked ? state.players.find((p) => p.id === state.buzz.playerId) : null;
     const buzzerTeam  = buzzer ? state.teams.find((t) => t.id === state.buzz.teamId) : null;
-    const baseLog     = {
-      ts,
-      category: state.currentClue.category,
-      value:    state.currentClue.value,
-      question: state.currentClue.question,
-      answer:   state.currentClue.answer,
-    };
+    const baseLog     = { ts, category: state.currentClue.category, value: state.currentClue.value, question: state.currentClue.question, answer: state.currentClue.answer };
 
     if (result === "correct" && state.buzz.locked && state.buzz.teamId) {
-      const logEntry = {
-        ...baseLog, result: "correct",
-        player: buzzer?.name ?? "?", team: buzzerTeam?.name ?? "?",
-        teamColor: buzzerTeam?.color ?? "#21c55d",
-        scoreDelta: `+$${scoreChange.toLocaleString()}`,
-      };
-      // ── Correct: buzzer now controls the board
+      const logEntry = { ...baseLog, result: "correct", player: buzzer?.name ?? "?", team: buzzerTeam?.name ?? "?", teamColor: buzzerTeam?.color ?? "#21c55d", scoreDelta: `+$${scoreChange.toLocaleString()}` };
       state = {
         ...markClueUsed({
           ...state,
           controlTeamId:   state.buzz.teamId,
-          controlPlayerId: state.buzz.playerId,  // ── NEW: transfer control to buzzer
-          teams: state.teams.map((t) =>
-            t.id === state.buzz.teamId ? { ...t, score: t.score + scoreChange } : t
-          ),
+          controlPlayerId: state.buzz.playerId,
+          teams: state.teams.map((t) => t.id === state.buzz.teamId ? { ...t, score: t.score + scoreChange } : t),
         }),
         gameLog: [...(state.gameLog ?? []), logEntry],
       };
       io.emit("sound:cue", "correct");
-
     } else if (result === "wrong" && state.buzz.locked && state.buzz.teamId) {
-      const logEntry = {
-        ...baseLog, result: "wrong",
-        player: buzzer?.name ?? "?", team: buzzerTeam?.name ?? "?",
-        teamColor: buzzerTeam?.color ?? "#ef4444",
-        scoreDelta: `-$${scoreChange.toLocaleString()}`,
-      };
-      // ── Wrong: control does NOT change, add to wrongPlayers
-      const wrongPlayerId       = state.buzz.playerId;
-      const updatedWrongPlayers = [...(state.currentClue.wrongPlayers ?? []), wrongPlayerId];
-
+      const logEntry = { ...baseLog, result: "wrong", player: buzzer?.name ?? "?", team: buzzerTeam?.name ?? "?", teamColor: buzzerTeam?.color ?? "#ef4444", scoreDelta: `-$${scoreChange.toLocaleString()}` };
+      const updatedWrongPlayers = [...(state.currentClue.wrongPlayers ?? []), state.buzz.playerId];
       const deducted = {
         ...state,
-        teams: state.teams.map((t) =>
-          t.id === state.buzz.teamId ? { ...t, score: t.score - scoreChange } : t
-        ),
+        teams: state.teams.map((t) => t.id === state.buzz.teamId ? { ...t, score: t.score - scoreChange } : t),
         currentClue: { ...state.currentClue, wrongPlayers: updatedWrongPlayers },
-        buzz:    freshBuzz(),
+        buzz: freshBuzz(),
         gameLog: [...(state.gameLog ?? []), logEntry],
       };
       state = isDD ? markClueUsed(deducted) : deducted;
       io.emit("sound:cue", "wrong");
-
     } else {
-      // ── Skip: control does NOT change
-      const logEntry = {
-        ...baseLog, result: "skip",
-        player: null, team: null, teamColor: null, scoreDelta: null,
-      };
-      state = {
-        ...markClueUsed({ ...state, buzz: freshBuzz() }),
-        gameLog: [...(state.gameLog ?? []), logEntry],
-      };
+      const logEntry = { ...baseLog, result: "skip", player: null, team: null, teamColor: null, scoreDelta: null };
+      state = { ...markClueUsed({ ...state, buzz: freshBuzz() }), gameLog: [...(state.gameLog ?? []), logEntry] };
     }
-
     emitState();
   });
 
@@ -710,12 +770,24 @@ io.on("connection", (socket) => {
   });
 
   // ─── Reset / Disconnect ───────────────────────────────────────────────────
-  socket.on("host:resetGame", () => { state = freshState(); emitState(); });
+  socket.on("host:resetGame", () => {
+    // Clear player registry on full reset so new game starts fresh
+    Object.keys(playerRegistry).forEach((k) => delete playerRegistry[k]);
+    Object.keys(socketToPlayer).forEach((k) => delete socketToPlayer[k]);
+    clearBuzzWindow();
+    state = freshState();
+    emitState();
+  });
 
   socket.on("disconnect", () => {
     console.log(`[-] ${socket.id}`);
+    clearInterval(pingTimer);
+    delete playerLatency[socket.id];
+    pendingBuzzes = pendingBuzzes.filter((b) => b.socketId !== socket.id);
+
     const wasBuzzer = state.buzz.playerId === socket.id;
-    // If the controlling player disconnects, pass control to next player on same team
+
+    // Control handoff on disconnect
     let newControlPlayerId = state.controlPlayerId;
     let newControlTeamId   = state.controlTeamId;
     if (state.controlPlayerId === socket.id) {
@@ -723,12 +795,15 @@ io.on("connection", (socket) => {
       if (remaining.length > 0) {
         newControlPlayerId = remaining[0].id;
       } else {
-        // Team has no players left, give control to any other player
         const anyPlayer = state.players.find((p) => p.id !== socket.id && p.teamId);
         newControlPlayerId = anyPlayer?.id ?? null;
         newControlTeamId   = anyPlayer?.teamId ?? null;
       }
     }
+
+    // Note: we do NOT clean up socketToPlayer here — the persistent mapping
+    // stays so the player can reconnect. It gets cleaned on host:resetGame.
+    // We DO remove them from the active players list.
     state = {
       ...state,
       players:         state.players.filter((p) => p.id !== socket.id),

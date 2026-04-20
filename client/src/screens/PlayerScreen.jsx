@@ -1,5 +1,5 @@
 import { useMemo, useState, useEffect, useRef } from "react";
-import { socket } from "../socket";
+import { socket, persistentPlayerId } from "../socket";
 import "./jaypardyTheme.css";
 import { playBuzz } from "../sounds";
 
@@ -107,9 +107,9 @@ export default function PlayerScreen({ state }) {
   };
 
   const join = () => {
-    if (!name.trim()) return;
-    socket.emit("player:join", { name: name.trim(), emoji });
-  };
+  if (!name.trim()) return;
+  socket.emit("player:join", { name: name.trim(), emoji, playerId: persistentPlayerId });
+};
 
   // ─── Join screen ──────────────────────────────────────────────────────────
   if (!joined) {

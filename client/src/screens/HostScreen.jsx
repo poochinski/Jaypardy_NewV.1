@@ -11,6 +11,14 @@ export default function HostScreen({ state }) {
   const [allCategories,    setAllCategories]    = useState([]);
   const [pauseMenuOpen,    setPauseMenuOpen]    = useState(false);
 
+  // ── Latency map ───────────────────────────────────────────────────────────
+  const [latencyMap, setLatencyMap] = useState({});
+  useEffect(() => {
+    const onLatency = (map) => setLatencyMap(map);
+    socket.on("latency:update", onLatency);
+    return () => socket.off("latency:update", onLatency);
+  }, []);
+
   useEffect(() => {
     const onCats = (cats) => setAllCategories(cats);
     socket.on("categories:update", onCats);
@@ -82,7 +90,6 @@ export default function HostScreen({ state }) {
   const paused       = state?.paused ?? false;
   const pauseMessage = state?.pauseMessage ?? "";
 
-  // ── Board control ─────────────────────────────────────────────────────────
   const controlPlayerId = state?.controlPlayerId ?? null;
   const controlTeamId   = state?.controlTeamId   ?? null;
   const controlPlayer   = players.find((p) => p.id === controlPlayerId) ?? null;
@@ -143,6 +150,25 @@ export default function HostScreen({ state }) {
     ? Object.keys(finalJaypardy.wagers).length : 0;
   const answerCount = finalJaypardy
     ? Object.values(finalJaypardy.answers).filter((a) => a !== null && a !== "").length : 0;
+
+  // ─── Ping bars component ──────────────────────────────────────────────────
+  const PingBars = ({ socketId }) => {
+    const ms = latencyMap[socketId];
+    if (!ms) return <span style={{ fontSize: 10, color: "rgba(246,247,255,0.15)", width: 16, textAlign: "center" }}>—</span>;
+    const color = ms < 80 ? "#21c55d" : ms < 200 ? "#fbbf24" : "#ef4444";
+    const bars  = ms < 80 ? 3 : ms < 200 ? 2 : 1;
+    return (
+      <div title={`${ms}ms`} style={{ display: "flex", alignItems: "flex-end", gap: 2, height: 14, flexShrink: 0 }}>
+        {[1, 2, 3].map((b) => (
+          <div key={b} style={{
+            width: 4, borderRadius: 1,
+            height: b === 1 ? 5 : b === 2 ? 9 : 13,
+            background: b <= bars ? color : "rgba(255,255,255,0.15)",
+          }} />
+        ))}
+      </div>
+    );
+  };
 
   // ─── Score strip ──────────────────────────────────────────────────────────
   const ScoreStrip = () => (
@@ -355,26 +381,20 @@ export default function HostScreen({ state }) {
             }
           </div>
         </div>
-
         {pickingDD && (
           <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"8px 12px", background:"rgba(255,221,117,0.12)", border:"1px solid rgba(255,221,117,0.35)", borderRadius:8, margin:"0 4px 8px" }}>
             <div style={{ fontSize:12, fontWeight:700, color:"#ffdd75" }}>Picking DD {ddPicked + 1} of {ddNeeded} — tap any dashed cell</div>
             <button onClick={() => socket.emit("host:cancelPickDD")} style={{ fontSize:11, fontWeight:700, color:"rgba(246,247,255,0.5)", background:"transparent", border:"1px solid rgba(255,255,255,0.15)", borderRadius:6, padding:"3px 8px", cursor:"pointer" }}>Cancel</button>
           </div>
         )}
-
         {!board ? (
           <div style={{ color:"rgba(246,247,255,0.4)", fontSize:14, padding:16 }}>No board yet.</div>
         ) : (
           <div className="jp-boardGrid">
             {board.columns.map((col, colIndex) => (
               <div key={col.id} className="jp-col">
-                <button
-                  className="jp-cat"
-                  onClick={() => { if (phase === "board") { setSwapMenu({ colIndex }); setSwapSearch(""); } }}
-                  style={{ cursor: phase === "board" ? "pointer" : "default", width:"100%", textAlign:"center" }}
-                  title="Tap to swap this category"
-                >
+                <button className="jp-cat" onClick={() => { if (phase === "board") { setSwapMenu({ colIndex }); setSwapSearch(""); } }}
+                  style={{ cursor: phase === "board" ? "pointer" : "default", width:"100%", textAlign:"center" }} title="Tap to swap this category">
                   {col.title}
                 </button>
                 {col.clues.map((c, rowIndex) => {
@@ -383,17 +403,8 @@ export default function HostScreen({ state }) {
                     ? () => isEligibleDD && socket.emit("host:pickDD", { colIndex, rowIndex })
                     : () => socket.emit("host:selectClue", { colIndex, rowIndex });
                   return (
-                    <button
-                      key={c.id}
-                      className="jp-cell"
-                      disabled={c.used || (pickingDD && !isEligibleDD)}
-                      onClick={handleClick}
-                      style={{
-                        opacity: c.used ? 0.3 : 1,
-                        cursor:  c.used ? "not-allowed" : pickingDD && !isEligibleDD ? "not-allowed" : "pointer",
-                        outline: c.isDD ? "3px solid rgba(255,215,79,0.9)" : isEligibleDD ? "2px dashed rgba(255,215,79,0.6)" : "none",
-                      }}
-                    >
+                    <button key={c.id} className="jp-cell" disabled={c.used || (pickingDD && !isEligibleDD)} onClick={handleClick}
+                      style={{ opacity: c.used ? 0.3 : 1, cursor: c.used ? "not-allowed" : pickingDD && !isEligibleDD ? "not-allowed" : "pointer", outline: c.isDD ? "3px solid rgba(255,215,79,0.9)" : isEligibleDD ? "2px dashed rgba(255,215,79,0.6)" : "none" }}>
                       ${c.value}
                       {c.isDD && <span className="jp-dd">DD</span>}
                     </button>
@@ -411,7 +422,6 @@ export default function HostScreen({ state }) {
   return (
     <div className="jp-root">
 
-      {/* Top bar */}
       <header className="jp-topbar">
         <div className="jp-title">JAYPARDY — HOST</div>
         <div className="jp-chip">Phase: <b>{phase}</b></div>
@@ -419,29 +429,21 @@ export default function HostScreen({ state }) {
         <div className="jp-chip">Socket: <b>{socket.connected ? "Connected ✅" : "Disconnected ❌"}</b></div>
       </header>
 
-      {/* Score strip */}
       <ScoreStrip />
 
-      {/* Main layout */}
       <div className="jp-layout">
-
-        {/* Left — board or clue */}
         <section className="jp-boardZone" style={{ display:"flex", flexDirection:"column" }}>
           <MainArea />
         </section>
 
-        {/* Right sidebar */}
         <aside className="jp-sideZone">
 
           {/* Players */}
           <div className="jp-panel">
             <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:10 }}>
               <div className="jp-panelTitle" style={{ marginBottom:0 }}>Players</div>
-              {/* Hint text — only show during active game */}
               {phase !== "lobby" && assignedPlayers.length > 0 && (
-                <div style={{ fontSize:10, color:"rgba(246,247,255,0.35)", fontStyle:"italic" }}>
-                  Tap to set control
-                </div>
+                <div style={{ fontSize:10, color:"rgba(246,247,255,0.35)", fontStyle:"italic" }}>Tap to set control</div>
               )}
             </div>
 
@@ -451,6 +453,7 @@ export default function HostScreen({ state }) {
                 {unassignedPlayers.map((p) => (
                   <div key={p.id} style={{ display:"flex", alignItems:"center", gap:8, padding:"7px 8px", borderRadius:9, border:"1px solid rgba(239,68,68,0.3)", background:"rgba(239,68,68,0.07)", marginBottom:5 }}>
                     <span style={{ fontSize:16 }}>{p.emoji}</span>
+                    <PingBars socketId={p.id} />
                     <span style={{ fontWeight:700, fontSize:12, flex:1 }}>{p.name}</span>
                     <select className="jp-teamSelect" value="" onChange={(e) => socket.emit("host:assignTeam", { playerId: p.id, teamId: e.target.value })}>
                       <option value="" disabled>Assign…</option>
@@ -489,6 +492,7 @@ export default function HostScreen({ state }) {
                 >
                   {t && <div style={{ width:8, height:8, borderRadius:"50%", background:t.color, flexShrink:0 }} />}
                   <span style={{ fontSize:16 }}>{p.emoji}</span>
+                  <PingBars socketId={p.id} />
                   <span style={{ fontWeight:700, fontSize:12, flex:1 }}>{p.name}</span>
                   {isControl && (
                     <span style={{ fontSize:10, fontWeight:900, color: t?.color ?? "#ffdd75", background:`${t?.color ?? "#ffdd75"}20`, border:`1px solid ${t?.color ?? "#ffdd75"}40`, padding:"2px 6px", borderRadius:999 }}>CONTROL</span>
@@ -496,7 +500,6 @@ export default function HostScreen({ state }) {
                   {buzz.locked && buzz.playerId === p.id && (
                     <span style={{ fontSize:10, fontWeight:900, color:"#ffdd75", background:"rgba(255,221,117,0.15)", border:"1px solid rgba(255,221,117,0.3)", padding:"2px 6px", borderRadius:999 }}>BUZZED</span>
                   )}
-                  {/* Stop click propagation on the team select so it doesn't trigger control transfer */}
                   <div onClick={(e) => e.stopPropagation()}>
                     <select className="jp-teamSelect" value={p.teamId ?? ""} onChange={(e) => socket.emit("host:assignTeam", { playerId: p.id, teamId: e.target.value })}>
                       {teams.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
@@ -636,13 +639,10 @@ export default function HostScreen({ state }) {
         <div style={{ position:"fixed", inset:0, zIndex:999, background:"rgba(0,0,0,0.8)", display:"flex", alignItems:"center", justifyContent:"center", padding:24 }}>
           <div style={{ background:"#090f3a", border:"1px solid rgba(255,255,255,0.15)", borderRadius:20, padding:28, width:"100%", maxWidth:400 }}>
             <div style={{ fontSize:20, fontWeight:900, color:"#ffdd75", marginBottom:16, textAlign:"center" }}>Pause Game</div>
-            <div style={{ fontSize:13, color:"rgba(246,247,255,0.5)", textAlign:"center", marginBottom:20 }}>
-              Choose a message to show on all screens
-            </div>
+            <div style={{ fontSize:13, color:"rgba(246,247,255,0.5)", textAlign:"center", marginBottom:20 }}>Choose a message to show on all screens</div>
             <div style={{ display:"flex", flexDirection:"column", gap:10, marginBottom:20 }}>
               {["Stand By", "We'll be right back", "Technical Difficulties", "Game on Timeout"].map((msg) => (
-                <button key={msg}
-                  onClick={() => { socket.emit("host:pause", { message: msg }); setPauseMenuOpen(false); }}
+                <button key={msg} onClick={() => { socket.emit("host:pause", { message: msg }); setPauseMenuOpen(false); }}
                   style={{ padding:"16px", borderRadius:12, fontSize:15, fontWeight:700, border:"1px solid rgba(255,221,117,0.3)", background:"rgba(255,221,117,0.08)", color:"#ffdd75", cursor:"pointer", textAlign:"left" }}>
                   {msg}
                 </button>
@@ -663,7 +663,7 @@ export default function HostScreen({ state }) {
             </div>
             <div style={{ flex:1, overflowY:"auto", display:"flex", flexDirection:"column", gap:6 }}>
               {gameLog.length === 0 ? (
-                <div style={{ textAlign:"center", color:"rgba(246,247,255,0.35)", fontSize:14, padding:24 }}>No events yet — history starts when clues are marked.</div>
+                <div style={{ textAlign:"center", color:"rgba(246,247,255,0.35)", fontSize:14, padding:24 }}>No events yet.</div>
               ) : (
                 [...gameLog].reverse().map((entry, i) => (
                   <div key={i} style={{ padding:"10px 14px", borderRadius:10, background: entry.result === "correct" ? `${entry.teamColor}18` : entry.result === "wrong" ? "rgba(239,68,68,0.10)" : "rgba(255,255,255,0.04)", border:`1px solid ${entry.result === "correct" ? entry.teamColor + "44" : entry.result === "wrong" ? "rgba(239,68,68,0.25)" : "rgba(255,255,255,0.07)"}` }}>
@@ -713,7 +713,7 @@ export default function HostScreen({ state }) {
               style={{ width:"100%", padding:"11px 14px", fontSize:14, borderRadius:10, border:"1px solid rgba(255,255,255,0.2)", background:"rgba(255,255,255,0.08)", color:"#f6f7ff", outline:"none", marginBottom:10, boxSizing:"border-box" }} />
             <div style={{ height:260, overflowY:"auto", border:"1px solid rgba(255,255,255,0.10)", borderRadius:10, background:"rgba(0,0,0,0.2)", marginBottom:14 }}>
               {Object.keys(savedThemes).length === 0 ? (
-                <div style={{ padding:20, textAlign:"center", color:"rgba(246,247,255,0.4)", fontSize:13 }}>No saved themes yet. Arrange your board and click Save Theme.</div>
+                <div style={{ padding:20, textAlign:"center", color:"rgba(246,247,255,0.4)", fontSize:13 }}>No saved themes yet.</div>
               ) : (
                 Object.keys(savedThemes).filter((name) => name.toLowerCase().includes(themeSearch.toLowerCase())).map((name) => (
                   <div key={name} style={{ display:"flex", alignItems:"center", gap:10, padding:"10px 14px", borderBottom:"1px solid rgba(255,255,255,0.05)" }}>
