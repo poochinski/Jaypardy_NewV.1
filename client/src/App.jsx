@@ -48,18 +48,20 @@ function LandingScreen() {
         }
 
         @media (max-width: 767px) {
-          .jp-landing {
-            background-image: url('/splash-mobile.png');
-            background-position: center top;
-          }
-        }
+  .jp-landing {
+    background-image: url('/splash-mobile.png');
+    background-size: 100% auto;
+    background-position: center top;
+  }
+}
 
-        @media (display-mode: standalone) and (max-width: 767px) {
-          .jp-landing {
-            background-image: url('/splash-mobile.png');
-            background-position: center top;
-          }
-        }
+@media (display-mode: standalone) and (max-width: 767px) {
+  .jp-landing {
+    background-image: url('/splash-mobile.png');
+    background-size: 100% auto;
+    background-position: center top;
+  }
+}
       `}</style>
 
       <div className="jp-landing">
