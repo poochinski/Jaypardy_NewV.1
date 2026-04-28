@@ -424,9 +424,14 @@ export default function HostScreen({ state }) {
 
       <header className="jp-topbar">
         <div className="jp-title">JAYPARDY — HOST</div>
-        <div className="jp-chip">Phase: <b>{phase}</b></div>
-        <div className="jp-chip">Round: <b>{board?.round ?? "—"}</b></div>
-        <div className="jp-chip">Socket: <b>{socket.connected ? "Connected ✅" : "Disconnected ❌"}</b></div>
+        {board && (
+          <div className="jp-chip">Round <b>{board.round}</b></div>
+        )}
+        {!socket.connected && (
+          <div className="jp-chip" style={{ color: "#fca5a5", borderColor: "rgba(239,68,68,0.4)" }}>
+            Disconnected ❌
+          </div>
+        )}
       </header>
 
       <ScoreStrip />

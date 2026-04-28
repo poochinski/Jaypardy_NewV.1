@@ -500,11 +500,12 @@ export default function PlayerScreen({ state }) {
             }
           </div>
         </div>
-        {myTeam && (
+        {myTeam && phase !== "board" && (
           <div style={{ background: myTeam.color, color: "#fff", fontWeight: 900, fontSize: 18, padding: "6px 14px", borderRadius: 10 }}>
             ${myTeam.score.toLocaleString()}
           </div>
         )}
+        
       </div>
 
       {/* Phase content */}
