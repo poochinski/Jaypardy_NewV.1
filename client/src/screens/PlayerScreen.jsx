@@ -522,13 +522,21 @@ export default function PlayerScreen({ state }) {
             <div style={{ fontSize: 11, fontWeight: 700, color: "rgba(246,247,255,0.35)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 10 }}>Scores</div>
             {visibleTeams.map((t) => {
               const isMyTeam = t.id === me?.teamId;
+              const teamPlayers = (state?.players ?? []).filter((p) => p.teamId === t.id);
               return (
                 <div key={t.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", borderRadius: 12, marginBottom: 8, background: isMyTeam ? `${t.color}18` : "rgba(255,255,255,0.03)", border: isMyTeam ? `1px solid ${t.color}55` : "1px solid rgba(255,255,255,0.07)" }}>
                   <div style={{ width: 10, height: 10, borderRadius: "50%", background: t.color, flexShrink: 0 }} />
-                  <div style={{ flex: 1, fontWeight: isMyTeam ? 900 : 600, fontSize: 14, color: isMyTeam ? t.color : "#f6f7ff" }}>
-                    {t.name} {isMyTeam && "(You)"}
+                  <div style={{ flex: 1 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                      {teamPlayers.map((p) => (
+                        <span key={p.id} style={{ display: "flex", alignItems: "center", gap: 4, fontWeight: isMyTeam ? 900 : 600, fontSize: 14, color: isMyTeam ? t.color : "#f6f7ff" }}>
+                          <span style={{ fontSize: 16 }}>{p.emoji}</span>
+                          <span>{p.name}{p.id === me?.id ? " (You)" : ""}</span>
+                        </span>
+                      ))}
+                    </div>
                   </div>
-                  <div style={{ fontWeight: 900, fontSize: 16, color: isMyTeam ? t.color : "#f6f7ff" }}>
+                  <div style={{ fontWeight: 900, fontSize: 16, color: isMyTeam ? t.color : "#f6f7ff", flexShrink: 0 }}>
                     ${t.score.toLocaleString()}
                   </div>
                 </div>
@@ -660,24 +668,20 @@ export default function PlayerScreen({ state }) {
       fontFamily: "ui-sans-serif, system-ui, sans-serif",
       display: "flex", flexDirection: "column",
     }}>
-      {/* Top bar */}
+      {/* Top bar — consistent across all phases */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "calc(env(safe-area-inset-top, 0px) + 14px) 18px 14px 18px", borderBottom: "1px solid rgba(255,255,255,0.07)", flexShrink: 0 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <div style={{ fontSize: 22 }}>{me.emoji}</div>
-          <div>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <div style={{ fontWeight: 900, fontSize: 15 }}>{me.name}</div>
-            {myTeam
-              ? <div style={{ width:10, height:10, borderRadius:"50%", background:myTeam.color, flexShrink:0 }} />
-              : null
-            }
+            {myTeam && <div style={{ width: 10, height: 10, borderRadius: "50%", background: myTeam.color, flexShrink: 0 }} />}
           </div>
         </div>
-        {myTeam && phase !== "board" && (
+        {myTeam && (
           <div style={{ background: myTeam.color, color: "#fff", fontWeight: 900, fontSize: 18, padding: "6px 14px", borderRadius: 10 }}>
             ${myTeam.score.toLocaleString()}
           </div>
         )}
-        
       </div>
 
       {/* Phase content */}
