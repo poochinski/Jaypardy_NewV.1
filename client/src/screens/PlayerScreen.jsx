@@ -520,7 +520,7 @@ export default function PlayerScreen({ state }) {
           {/* Scoreboard */}
           <div style={{ marginBottom: 20 }}>
             <div style={{ fontSize: 11, fontWeight: 700, color: "rgba(246,247,255,0.35)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 10 }}>Scores</div>
-            {visibleTeams.map((t) => {
+            {[...visibleTeams].sort((a, b) => b.score - a.score).map((t) => {
               const isMyTeam = t.id === me?.teamId;
               const teamPlayers = (state?.players ?? []).filter((p) => p.teamId === t.id);
               return (
@@ -531,7 +531,7 @@ export default function PlayerScreen({ state }) {
                       {teamPlayers.map((p) => (
                         <span key={p.id} style={{ display: "flex", alignItems: "center", gap: 4, fontWeight: isMyTeam ? 900 : 600, fontSize: 14, color: isMyTeam ? t.color : "#f6f7ff" }}>
                           <span style={{ fontSize: 16 }}>{p.emoji}</span>
-                          <span>{p.name}{p.id === me?.id ? " (You)" : ""}</span>
+                          <span>{p.name}</span>
                         </span>
                       ))}
                     </div>
