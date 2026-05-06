@@ -241,6 +241,9 @@ function freshState() {
     ddPicked:        0,
     gameLog:         [],
     buzz:            freshBuzz(),
+    buzzerType:      "standard",  // "standard" | "puzzle"
+    puzzleActive:    false,       // true when puzzle buzzer is live on player screens
+    puzzleSeed:      null,        // current puzzle config (shapes, order) — same for all players
   };
 }
 
@@ -611,7 +614,69 @@ io.on("connection", (socket) => {
 
   socket.on("host:resetBuzz", () => {
     clearBuzzWindow();
-    state = { ...state, buzz: freshBuzz() };
+    state = { ...state, buzz: freshBuzz(), puzzleActive: false };
+    emitState();
+  });
+
+  // ─── Buzzer type toggle ───────────────────────────────────────────────────
+  socket.on("host:setBuzzerType", ({ buzzerType }) => {
+    if (buzzerType !== "standard" && buzzerType !== "puzzle") return;
+    state = { ...state, buzzerType, puzzleActive: false };
+    emitState();
+  });
+
+  // ─── Puzzle buzzer ────────────────────────────────────────────────────────
+  socket.on("host:launchPuzzle", () => {
+    if (state.phase !== "clue" && state.phase !== "dailyDoubleClue") return;
+    if (state.buzz.locked) return;
+    if (state.buzzerType !== "puzzle") return;
+
+    const ALL_SHAPES = ["circle", "square", "triangle", "star", "diamond", "hexagon"];
+    const ALL_COLORS = ["#e53935", "#1e88e5", "#43a047", "#fdd835", "#8e24aa", "#fb8c00"];
+
+    const shuffledShapes = [...ALL_SHAPES].sort(() => Math.random() - 0.5);
+    const shuffledColors = [...ALL_COLORS].sort(() => Math.random() - 0.5);
+
+    const pool = shuffledShapes.slice(0, 6).map((shape, i) => ({
+      id:    shape + "-" + i,
+      shape,
+      color: shuffledColors[i],
+    }));
+
+    const answer  = pool.slice(0, 3);
+    const allPool = [...pool].sort(() => Math.random() - 0.5);
+
+    clearBuzzWindow();
+    state = { ...state, puzzleActive: true, puzzleSeed: { answer, pool: allPool }, buzz: freshBuzz() };
+    emitState();
+  });
+
+  socket.on("player:puzzleSolved", ({ solution }) => {
+    if (!state.puzzleActive) return;
+    if (state.buzz.locked) return;
+    const p = state.players.find((x) => x.id === socket.id);
+    if (!p || !p.teamId) return;
+    if (state.currentClue?.wrongPlayers?.includes(socket.id)) return;
+
+    const { answer } = state.puzzleSeed;
+    const correct = Array.isArray(solution)
+      && solution.length === 3
+      && solution.every((id, i) => id === answer[i].id);
+
+    if (!correct) return;
+
+    state = {
+      ...state,
+      puzzleActive: false,
+      buzz: {
+        locked:    true,
+        playerId:  p.id,
+        teamId:    p.teamId,
+        name:      p.name,
+        emoji:     p.emoji,
+        timestamp: Date.now(),
+      },
+    };
     emitState();
   });
 

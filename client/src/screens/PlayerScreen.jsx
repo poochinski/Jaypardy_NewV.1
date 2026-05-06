@@ -16,6 +16,7 @@ export default function PlayerScreen({ state }) {
   const [wagerLocked,  setWagerLocked]  = useState(false);
   const [answerLocked, setAnswerLocked] = useState(false);
   const [buzzFlash,    setBuzzFlash]    = useState(false);
+  const [slotShapes,   setSlotShapes]   = useState([null, null, null]); // puzzle slots
   const lostTimer  = useRef(null);
   const flashTimer = useRef(null);
 
@@ -31,6 +32,9 @@ export default function PlayerScreen({ state }) {
 
   const joined        = !!me;
   const phase         = state?.phase;
+  const puzzleActive  = state?.puzzleActive ?? false;
+  const puzzleSeed    = state?.puzzleSeed ?? null;
+  const buzzerType    = state?.buzzerType ?? "standard";
   const buzz          = state?.buzz;
   const paused        = state?.paused ?? false;
   const pauseMessage  = state?.pauseMessage ?? "";
@@ -97,6 +101,32 @@ export default function PlayerScreen({ state }) {
   const doBuzz = () => {
     if (buzzState !== "ready") return;
     socket.emit("player:buzz", { clientTimestamp: Date.now() });
+  };
+
+  // Reset puzzle slots when a new puzzle launches
+  useEffect(() => {
+    if (puzzleActive) setSlotShapes([null, null, null]);
+  }, [puzzleActive]);
+
+  const dropOnSlot = (slotIndex, shapeId) => {
+    setSlotShapes((prev) => {
+      const next = [...prev];
+      // Remove shape from any other slot first
+      for (let i = 0; i < next.length; i++) {
+        if (next[i] === shapeId) next[i] = null;
+      }
+      next[slotIndex] = shapeId;
+      return next;
+    });
+  };
+
+  const removeFromSlot = (slotIndex) => {
+    setSlotShapes((prev) => { const next = [...prev]; next[slotIndex] = null; return next; });
+  };
+
+  const submitPuzzle = (slots) => {
+    if (slots.some((s) => s === null)) return;
+    socket.emit("player:puzzleSolved", { solution: slots });
   };
 
   const doWager = () => {
@@ -201,6 +231,123 @@ export default function PlayerScreen({ state }) {
         </div>
         <div style={{ fontSize: 14, color: "rgba(246,247,255,0.4)", fontWeight: 700 }}>
           Game paused — host will resume shortly
+        </div>
+      </div>
+    );
+  }
+
+  // ─── Puzzle buzzer screen ────────────────────────────────────────────────
+  if ((phase === "clue" || phase === "dailyDoubleClue") && puzzleActive && puzzleSeed) {
+    const clue = state?.currentClue;
+    const { answer, pool } = puzzleSeed;
+    const usedInSlots = slotShapes.filter(Boolean);
+    const poolAvailable = pool.filter((s) => !usedInSlots.includes(s.id));
+    const allFilled = slotShapes.every((s) => s !== null);
+
+    const ShapeIcon = ({ shape, color, size = 40 }) => {
+      const s = size;
+      const c = color;
+      if (shape === "circle")   return <svg width={s} height={s}><circle cx={s/2} cy={s/2} r={s/2-2} fill={c} /></svg>;
+      if (shape === "square")   return <svg width={s} height={s}><rect x={2} y={2} width={s-4} height={s-4} fill={c} rx={4} /></svg>;
+      if (shape === "triangle") return <svg width={s} height={s}><polygon points={`${s/2},2 ${s-2},${s-2} 2,${s-2}`} fill={c} /></svg>;
+      if (shape === "star")     return <svg width={s} height={s} viewBox="0 0 24 24"><polygon points="12,2 15.09,8.26 22,9.27 17,14.14 18.18,21.02 12,17.77 5.82,21.02 7,14.14 2,9.27 8.91,8.26" fill={c} /></svg>;
+      if (shape === "diamond")  return <svg width={s} height={s}><polygon points={`${s/2},2 ${s-2},${s/2} ${s/2},${s-2} 2,${s/2}`} fill={c} /></svg>;
+      if (shape === "hexagon")  return <svg width={s} height={s} viewBox="0 0 24 24"><polygon points="12,2 20,7 20,17 12,22 4,17 4,7" fill={c} /></svg>;
+      return null;
+    };
+
+    const getShapeById = (id) => pool.find((s) => s.id === id);
+
+    // Auto-submit when all 3 slots filled
+    useEffect(() => {
+      if (slotShapes.every((s) => s !== null)) {
+        submitPuzzle(slotShapes);
+      }
+    }, [slotShapes]);
+
+    return (
+      <div style={{ minHeight:"100vh", paddingTop:"env(safe-area-inset-top,0px)", background:"#050a2a", color:"#f6f7ff", fontFamily:"ui-sans-serif,system-ui,sans-serif", display:"flex", flexDirection:"column" }}>
+        {/* Top bar */}
+        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"calc(env(safe-area-inset-top,0px) + 14px) 18px 14px 18px", borderBottom:"1px solid rgba(255,255,255,0.07)" }}>
+          <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+            <div style={{ fontSize:22 }}>{me.emoji}</div>
+            <div>
+              <div style={{ fontWeight:900, fontSize:15 }}>{me.name}</div>
+              {myTeam && <div style={{ fontSize:12, color:myTeam.color, fontWeight:700 }}>{myTeam.name}</div>}
+            </div>
+          </div>
+          {myTeam && <div style={{ background:myTeam.color, color:"#fff", fontWeight:900, fontSize:18, padding:"6px 14px", borderRadius:10 }}>${myTeam.score.toLocaleString()}</div>}
+        </div>
+
+        {/* Clue info */}
+        {clue && (
+          <div style={{ padding:"12px 18px 0", textAlign:"center" }}>
+            <div style={{ fontSize:11, fontWeight:700, color:"rgba(246,247,255,0.4)", textTransform:"uppercase", letterSpacing:1.5, marginBottom:4 }}>{clue.category}</div>
+            <div style={{ fontSize:22, fontWeight:900, color:"#ffdd75" }}>{phase === "dailyDoubleClue" ? `Daily Double` : `$${clue.value}`}</div>
+          </div>
+        )}
+
+        <div style={{ flex:1, display:"flex", flexDirection:"column", padding:"16px 20px", gap:16 }}>
+
+          {/* Instruction */}
+          <div style={{ textAlign:"center", fontSize:13, fontWeight:700, color:"rgba(246,247,255,0.5)" }}>
+            Match the 3 shapes in the correct order — drag from below
+          </div>
+
+          {/* Target order — top row (slots) */}
+          <div style={{ display:"flex", justifyContent:"center", gap:12 }}>
+            {[0,1,2].map((i) => {
+              const filledShape = slotShapes[i] ? getShapeById(slotShapes[i]) : null;
+              return (
+                <div key={i}
+                  onDragOver={(e) => e.preventDefault()}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    const id = e.dataTransfer.getData("shapeId");
+                    if (id) dropOnSlot(i, id);
+                  }}
+                  onClick={() => filledShape && removeFromSlot(i)}
+                  style={{ width:70, height:70, borderRadius:14, border: filledShape ? `2px solid ${filledShape.color}` : "2px dashed rgba(255,255,255,0.2)", background: filledShape ? `${filledShape.color}18` : "rgba(255,255,255,0.04)", display:"flex", alignItems:"center", justifyContent:"center", cursor: filledShape ? "pointer" : "default", position:"relative" }}>
+                  {filledShape
+                    ? <ShapeIcon shape={filledShape.shape} color={filledShape.color} size={44} />
+                    : <span style={{ fontSize:22, opacity:0.2 }}>?</span>
+                  }
+                  <div style={{ position:"absolute", bottom:4, right:6, fontSize:10, fontWeight:900, color:"rgba(255,255,255,0.3)" }}>{i+1}</div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Divider */}
+          <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+            <div style={{ flex:1, height:1, background:"rgba(255,255,255,0.07)" }} />
+            <div style={{ fontSize:11, color:"rgba(255,255,255,0.25)", fontWeight:700 }}>POOL</div>
+            <div style={{ flex:1, height:1, background:"rgba(255,255,255,0.07)" }} />
+          </div>
+
+          {/* Pool of 6 shapes — bottom */}
+          <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:10 }}>
+            {pool.map((s) => {
+              const inSlot = usedInSlots.includes(s.id);
+              return (
+                <div key={s.id}
+                  draggable={!inSlot}
+                  onDragStart={(e) => { e.dataTransfer.setData("shapeId", s.id); }}
+                  onClick={() => {
+                    if (inSlot) return;
+                    const firstEmpty = slotShapes.findIndex((x) => x === null);
+                    if (firstEmpty !== -1) dropOnSlot(firstEmpty, s.id);
+                  }}
+                  style={{ height:72, borderRadius:14, border:`1px solid ${inSlot ? "rgba(255,255,255,0.05)" : s.color+"66"}`, background: inSlot ? "rgba(255,255,255,0.02)" : `${s.color}18`, display:"flex", alignItems:"center", justifyContent:"center", cursor: inSlot ? "not-allowed" : "grab", opacity: inSlot ? 0.25 : 1, transition:"opacity 0.15s" }}>
+                  {!inSlot && <ShapeIcon shape={s.shape} color={s.color} size={40} />}
+                </div>
+              );
+            })}
+          </div>
+
+          <div style={{ textAlign:"center", fontSize:12, color:"rgba(246,247,255,0.3)" }}>
+            Tap or drag shapes into the slots · Tap a filled slot to remove it
+          </div>
         </div>
       </div>
     );

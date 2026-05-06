@@ -89,6 +89,8 @@ export default function HostScreen({ state }) {
   const phase        = state?.phase ?? "lobby";
   const paused       = state?.paused ?? false;
   const pauseMessage = state?.pauseMessage ?? "";
+  const buzzerType   = state?.buzzerType ?? "standard";
+  const puzzleActive = state?.puzzleActive ?? false;
 
   const controlPlayerId = state?.controlPlayerId ?? null;
   const controlTeamId   = state?.controlTeamId   ?? null;
@@ -365,6 +367,17 @@ export default function HostScreen({ state }) {
             <button onClick={() => socket.emit("host:mark", { result: "skip" })} style={{ padding:"10px", borderRadius:8, border:"1px solid rgba(255,255,255,0.28)", background:"rgba(255,255,255,0.09)", color:"#f6f7ff", fontSize:13, fontWeight:800, cursor:"pointer" }}>Skip</button>
             <button onClick={() => socket.emit("host:resetBuzz")} style={{ padding:"10px", borderRadius:8, border:"1px solid rgba(255,255,255,0.10)", background:"transparent", color:"rgba(246,247,255,0.35)", fontSize:11, fontWeight:700, cursor:"pointer" }}>Reset Buzzers</button>
           </div>
+          {buzzerType === "puzzle" && !buzz.locked && !puzzleActive && (
+            <button onClick={() => socket.emit("host:launchPuzzle")}
+              style={{ padding:"12px", borderRadius:10, border:"2px solid rgba(160,120,255,0.6)", background:"rgba(160,120,255,0.15)", color:"#c4b5fd", fontSize:14, fontWeight:900, cursor:"pointer", flexShrink:0 }}>
+              🧩 Launch Puzzle
+            </button>
+          )}
+          {puzzleActive && (
+            <div style={{ padding:"10px 14px", borderRadius:10, background:"rgba(160,120,255,0.12)", border:"1px solid rgba(160,120,255,0.35)", textAlign:"center", color:"#c4b5fd", fontSize:13, fontWeight:700, flexShrink:0 }}>
+              🧩 Puzzle active — waiting for a player to solve it…
+            </div>
+          )}
         </div>
       );
     }
@@ -573,6 +586,20 @@ export default function HostScreen({ state }) {
 
               <button className="jp-btn" style={{ background:"rgba(160,120,255,0.10)", borderColor:"rgba(160,120,255,0.3)", color:"#c4b5fd" }} onClick={() => setShowHistory(true)}>Game History</button>
               <button className="jp-btn" style={{ background:"rgba(34,197,94,0.10)", borderColor:"rgba(34,197,94,0.3)", color:"#86efac" }} onClick={() => setShowSounds(true)}>Sound Levels</button>
+
+              <div style={{ gridColumn:"span 2", display:"flex", flexDirection:"column", gap:6 }}>
+                <div style={{ fontSize:11, fontWeight:700, color:"rgba(246,247,255,0.4)", textTransform:"uppercase", letterSpacing:0.6 }}>Buzzer Type</div>
+                <div style={{ display:"flex", gap:6 }}>
+                  <button onClick={() => socket.emit("host:setBuzzerType", { buzzerType:"standard" })}
+                    style={{ flex:1, padding:"8px", borderRadius:8, fontSize:12, fontWeight:900, border: buzzerType==="standard" ? "2px solid rgba(255,221,117,0.6)" : "1px solid rgba(255,255,255,0.12)", background: buzzerType==="standard" ? "rgba(255,221,117,0.15)" : "rgba(255,255,255,0.05)", color: buzzerType==="standard" ? "#ffdd75" : "rgba(246,247,255,0.5)", cursor:"pointer" }}>
+                    Standard
+                  </button>
+                  <button onClick={() => socket.emit("host:setBuzzerType", { buzzerType:"puzzle" })}
+                    style={{ flex:1, padding:"8px", borderRadius:8, fontSize:12, fontWeight:900, border: buzzerType==="puzzle" ? "2px solid rgba(160,120,255,0.6)" : "1px solid rgba(255,255,255,0.12)", background: buzzerType==="puzzle" ? "rgba(160,120,255,0.15)" : "rgba(255,255,255,0.05)", color: buzzerType==="puzzle" ? "#c4b5fd" : "rgba(246,247,255,0.5)", cursor:"pointer" }}>
+                    🧩 Puzzle
+                  </button>
+                </div>
+              </div>
 
               {paused ? (
                 <button className="jp-btn" style={{ gridColumn:"span 2", background:"rgba(33,197,93,0.15)", borderColor:"rgba(33,197,93,0.4)", color:"#86efac", fontWeight:900 }}
