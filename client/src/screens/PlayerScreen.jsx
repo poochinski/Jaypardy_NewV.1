@@ -70,7 +70,7 @@ function PuzzleScreen({ state, me, myTeam, phase, puzzleSeed, slotShapes, setSlo
           <div style={{ fontSize:22 }}>{me.emoji}</div>
           <div>
             <div style={{ fontWeight:900, fontSize:15 }}>{me.name}</div>
-            {myTeam && <div style={{ fontSize:12, color:myTeam.color, fontWeight:700 }}>{myTeam.name}</div>}
+            {myTeam && <div style={{ width:10, height:10, borderRadius:"50%", background:myTeam.color, flexShrink:0 }} />}
           </div>
         </div>
         {myTeam && <div style={{ background:myTeam.color, color:"#fff", fontWeight:900, fontSize:18, padding:"6px 14px", borderRadius:10 }}>${myTeam.score.toLocaleString()}</div>}
@@ -89,21 +89,20 @@ function PuzzleScreen({ state, me, myTeam, phase, puzzleSeed, slotShapes, setSlo
           Place the 3 shapes in the correct order
         </div>
 
-        {/* Target slots */}
+        {/* Target slots — show outline silhouette of correct answer */}
         <div style={{ display:"flex", justifyContent:"center", gap:12 }}>
           {[0,1,2].map((i) => {
             const filled = slotShapes[i] ? getShapeById(slotShapes[i]) : null;
+            const target = answer[i];
             return (
               <div key={i}
-                onDragOver={(e) => e.preventDefault()}
-                onDrop={(e) => { e.preventDefault(); const id = e.dataTransfer.getData("shapeId"); if (id) dropOnSlot(i, id); }}
                 onClick={() => filled && removeFromSlot(i)}
-                style={{ width:72, height:72, borderRadius:14, border: filled ? `2px solid ${filled.color}` : "2px dashed rgba(255,255,255,0.2)", background: filled ? `${filled.color}20` : "rgba(255,255,255,0.03)", display:"flex", alignItems:"center", justifyContent:"center", cursor: filled ? "pointer" : "default", position:"relative", transition:"border 0.1s, background 0.1s" }}>
+                style={{ width:76, height:76, borderRadius:14, border: filled ? `2px solid ${filled.color}` : "2px dashed rgba(255,255,255,0.2)", background: filled ? `${filled.color}20` : "rgba(255,255,255,0.03)", display:"flex", alignItems:"center", justifyContent:"center", cursor: filled ? "pointer" : "default", position:"relative", transition:"border 0.1s, background 0.1s" }}>
                 {filled
-                  ? <ShapeIcon shape={filled.shape} color={filled.color} size={46} />
-                  : <span style={{ fontSize:22, opacity:0.15 }}>?</span>
+                  ? <ShapeIcon shape={filled.shape} color={filled.color} size={48} />
+                  : <ShapeIcon shape={target.shape} color="rgba(255,255,255,0.12)" size={48} />
                 }
-                <div style={{ position:"absolute", bottom:4, right:6, fontSize:10, fontWeight:900, color:"rgba(255,255,255,0.25)" }}>{i+1}</div>
+                <div style={{ position:"absolute", bottom:3, right:5, fontSize:10, fontWeight:900, color:"rgba(255,255,255,0.2)" }}>{i+1}</div>
               </div>
             );
           })}
@@ -112,7 +111,7 @@ function PuzzleScreen({ state, me, myTeam, phase, puzzleSeed, slotShapes, setSlo
         {/* Divider */}
         <div style={{ display:"flex", alignItems:"center", gap:10 }}>
           <div style={{ flex:1, height:1, background:"rgba(255,255,255,0.07)" }} />
-          <div style={{ fontSize:11, color:"rgba(255,255,255,0.2)", fontWeight:700, letterSpacing:1 }}>TAP OR DRAG</div>
+          <div style={{ fontSize:11, color:"rgba(255,255,255,0.2)", fontWeight:700, letterSpacing:1 }}>TAP TO PLACE</div>
           <div style={{ flex:1, height:1, background:"rgba(255,255,255,0.07)" }} />
         </div>
 
@@ -347,10 +346,39 @@ export default function PlayerScreen({ state }) {
 
   // ─── Buzz screen (standard) or puzzle screen ────────────────────────────────
   if (phase === "clue" || phase === "dailyDoubleClue") {
-    // If puzzle is active, show puzzle UI instead of buzz button
+    // Puzzle mode active — show puzzle UI
     if (puzzleActive && puzzleSeed) {
       return <PuzzleScreen state={state} me={me} myTeam={myTeam} phase={phase}
         puzzleSeed={puzzleSeed} slotShapes={slotShapes} setSlotShapes={setSlotShapes} />;
+    }
+    // Puzzle mode selected but not yet launched — show waiting screen, no buzz button
+    if (buzzerType === "puzzle") {
+      const clue = state?.currentClue;
+      return (
+        <div style={{ minHeight:"100vh", paddingTop:"env(safe-area-inset-top,0px)", background:"#050a2a", color:"#f6f7ff", fontFamily:"ui-sans-serif,system-ui,sans-serif", display:"flex", flexDirection:"column" }}>
+          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"calc(env(safe-area-inset-top,0px) + 14px) 18px 14px 18px", borderBottom:"1px solid rgba(255,255,255,0.07)" }}>
+            <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+              <div style={{ fontSize:22 }}>{me.emoji}</div>
+              <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                <div style={{ fontWeight:900, fontSize:15 }}>{me.name}</div>
+                {myTeam && <div style={{ width:10, height:10, borderRadius:"50%", background:myTeam.color, flexShrink:0 }} />}
+              </div>
+            </div>
+            {myTeam && <div style={{ background:myTeam.color, color:"#fff", fontWeight:900, fontSize:18, padding:"6px 14px", borderRadius:10 }}>${myTeam.score.toLocaleString()}</div>}
+          </div>
+          {clue && (
+            <div style={{ padding:"12px 18px 0", textAlign:"center" }}>
+              <div style={{ fontSize:11, fontWeight:700, color:"rgba(246,247,255,0.4)", textTransform:"uppercase", letterSpacing:1.5, marginBottom:4 }}>{clue.category}</div>
+              <div style={{ fontSize:22, fontWeight:900, color:"#ffdd75" }}>{phase === "dailyDoubleClue" ? "Daily Double" : `$${clue.value}`}</div>
+            </div>
+          )}
+          <div style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:16, padding:32, textAlign:"center" }}>
+            <div style={{ fontSize:48 }}>🧩</div>
+            <div style={{ fontSize:18, fontWeight:900, color:"rgba(246,247,255,0.6)" }}>Get ready…</div>
+            <div style={{ fontSize:14, color:"rgba(246,247,255,0.35)" }}>Host will launch the puzzle when ready</div>
+          </div>
+        </div>
+      );
     }
     const clue = state?.currentClue;
     const buzzColors = {
@@ -374,7 +402,7 @@ export default function PlayerScreen({ state }) {
             <div style={{ fontSize: 22 }}>{me.emoji}</div>
             <div>
               <div style={{ fontWeight: 900, fontSize: 15 }}>{me.name}</div>
-              {myTeam && <div style={{ fontSize: 12, color: myTeam.color, fontWeight: 700 }}>{myTeam.name}</div>}
+              {myTeam && <div style={{ width:10, height:10, borderRadius:"50%", background:myTeam.color, flexShrink:0 }} />}
             </div>
           </div>
           {myTeam && (
@@ -480,7 +508,7 @@ export default function PlayerScreen({ state }) {
           <div style={{ fontSize: 40 }}>⏳</div>
           <div style={{ fontSize: 20, fontWeight: 900, color: "#ffdd75" }}>Waiting for game to start</div>
           <div style={{ fontSize: 14, color: "rgba(246,247,255,0.4)" }}>
-            {!me?.teamId ? "Host will assign you to a team" : `You're on team ${myTeam?.name}`}
+            {!me?.teamId ? "Host will assign you to a team" : "You're all set — waiting for host to start"}
           </div>
         </div>
       );
@@ -639,8 +667,8 @@ export default function PlayerScreen({ state }) {
           <div>
             <div style={{ fontWeight: 900, fontSize: 15 }}>{me.name}</div>
             {myTeam
-              ? <div style={{ fontSize: 12, color: myTeam.color, fontWeight: 700 }}>{myTeam.name}</div>
-              : <div style={{ fontSize: 12, color: "rgba(255,100,100,0.8)" }}>No team yet</div>
+              ? <div style={{ width:10, height:10, borderRadius:"50%", background:myTeam.color, flexShrink:0 }} />
+              : null
             }
           </div>
         </div>
