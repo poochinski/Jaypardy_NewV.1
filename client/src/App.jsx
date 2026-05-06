@@ -67,7 +67,7 @@ function LandingScreen() {
       <div className="jp-landing">
         <div style={{
           background:    "linear-gradient(to top, rgba(5,10,42,0.97) 35%, rgba(5,10,42,0.55) 60%, transparent 85%)",
-          padding:       "clamp(80px,15vw,160px) clamp(16px,5vw,40px) clamp(24px,4vw,48px)",
+          padding: "clamp(20px,5vw,40px) clamp(16px,5vw,40px) clamp(32px,5vw,56px)",
           display:       "flex",
           flexDirection: "column",
           alignItems:    "center",
