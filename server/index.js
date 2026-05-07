@@ -521,7 +521,13 @@ io.on("connection", (socket) => {
     const chosen  = pickRandom(cat.clues, 5);
     const newCol  = {
       id: `c${colIndex}`, title: cat.category,
-      clues: chosen.map((cl, ri) => ({ id:`c${colIndex}r${ri}`, value:values[ri], question:cl.q, answer:cl.a, used:false, isDD:false })),
+      clues: chosen.map((cl, ri) => {
+        const clueData = { id:`c${colIndex}r${ri}`, value:values[ri], question:cl.q, answer:cl.a, used:false, isDD:false };
+        if (cl.mediaUrl)  clueData.mediaUrl  = cl.mediaUrl;
+        if (cl.mediaType) clueData.mediaType = cl.mediaType;
+        if (cl.publicId)  clueData.publicId  = cl.publicId;
+        return clueData;
+      }),
     };
     if (state.board.columns[colIndex].clues.some((c) => c.isDD)) {
       newCol.clues[1 + Math.floor(Math.random() * 4)].isDD = true;
@@ -831,7 +837,13 @@ io.on("connection", (socket) => {
     const columns = categories.map((catName, ci) => {
       const cat    = categoryCache.find((c) => c.category === catName) ?? categoryCache[ci % categoryCache.length];
       const chosen = pickRandom(cat.clues, 5);
-      return { id:`c${ci}`, title:cat.category, hint: cat.hint || "", clues: chosen.map((cl, ri) => ({ id:`c${ci}r${ri}`, value:values[ri], question:cl.q, answer:cl.a, used:false, isDD:false })) };
+      return { id:`c${ci}`, title:cat.category, hint: cat.hint || "", clues: chosen.map((cl, ri) => {
+        const clueData = { id:`c${ci}r${ri}`, value:values[ri], question:cl.q, answer:cl.a, used:false, isDD:false };
+        if (cl.mediaUrl)  clueData.mediaUrl  = cl.mediaUrl;
+        if (cl.mediaType) clueData.mediaType = cl.mediaType;
+        if (cl.publicId)  clueData.publicId  = cl.publicId;
+        return clueData;
+      }) };
     });
     const placed = new Set(); let att = 0;
     while (placed.size < ddCount && att < 50) {

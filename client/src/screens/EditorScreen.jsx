@@ -135,6 +135,9 @@ export default function EditorScreen() {
       const out  = { q: cl.q, a: cl.a };
       const newD = i === clueIndex ? diff : cl.d;
       if (newD) out.d = newD;
+      if (cl.mediaUrl)  out.mediaUrl  = cl.mediaUrl;
+      if (cl.mediaType) out.mediaType = cl.mediaType;
+      if (cl.publicId)  out.publicId  = cl.publicId;
       return out;
     });
     saveClues(cleaned);
@@ -549,7 +552,7 @@ export default function EditorScreen() {
                           <DiffButton key={d} value={d} selected={cl.d ?? null} onSelect={(val) => handleDiffChange(i, val)} />
                         ))}
                         <div style={{ flex:1 }} />
-                        <button onClick={() => setEditingClue({ index:i, q:cl.q, a:cl.a, d:cl.d ?? null })}
+                        <button onClick={() => setEditingClue({ index:i, q:cl.q, a:cl.a, d:cl.d ?? null, mediaUrl:cl.mediaUrl ?? null, mediaType:cl.mediaType ?? null, publicId:cl.publicId ?? null })}
                           style={{ padding:"8px 16px", minHeight:40, borderRadius:8, fontSize:13, fontWeight:700, border:"1px solid rgba(255,255,255,0.15)", background:"rgba(255,255,255,0.06)", color:"rgba(246,247,255,0.7)", cursor:"pointer" }}>
                           Edit
                         </button>
