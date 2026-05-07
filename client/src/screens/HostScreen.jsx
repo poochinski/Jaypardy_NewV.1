@@ -434,7 +434,7 @@ export default function HostScreen({ state }) {
               </div>
               {/* Private question text */}
               <div style={{ flex:1, display:"flex", flexDirection:"column", justifyContent:"center", gap:8 }}>
-                <div style={{ fontSize:11, fontWeight:700, color:"rgba(99,179,237,0.6)", textTransform:"uppercase", letterSpacing:0.5 }}>Your private clue text</div>
+                <div style={{ fontSize:11, fontWeight:700, color:"rgba(99,179,237,0.6)", textTransform:"uppercase", letterSpacing:0.5 }}></div>
                 <div style={{ fontSize:16, fontWeight:700, color:"#fff", lineHeight:1.4 }}>{clue.question || <span style={{ opacity:0.35, fontStyle:"italic" }}>No clue text — read from image</span>}</div>
               </div>
             </div>
