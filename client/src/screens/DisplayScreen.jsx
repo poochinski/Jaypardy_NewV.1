@@ -264,7 +264,7 @@ export default function DisplayScreen({ state }) {
         <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", textAlign: "center", padding: 40 }}>
           <div style={{ fontSize: 32, fontWeight: 900, color: revealAnswer.color, marginBottom: 16, letterSpacing: 1 }}>
             {revealAnswer.emoji} {revealAnswer.name}
-            {revealAnswer.teamName && <span style={{ opacity: 0.7, marginLeft: 10, fontSize: 22 }}>— {revealAnswer.teamName}</span>}
+            
           </div>
           <div style={{ fontSize: 72, fontWeight: 900, color: "#21c55d", lineHeight: 1 }}>CORRECT!</div>
         </div>
@@ -312,7 +312,7 @@ export default function DisplayScreen({ state }) {
           {buzzer ? (
             <div style={{ textAlign: "center", padding: "20px 32px", borderRadius: 20, background: `${buzzerTeam?.color ?? "#ffdd75"}22`, border: `2px solid ${buzzerTeam?.color ?? "#ffdd75"}`, fontSize: 32, fontWeight: 900, color: buzzerTeam?.color ?? "#ffdd75", letterSpacing: 0.5 }}>
               {buzzer.emoji} {buzzer.name}
-              {buzzerTeam && <span style={{ fontSize: 20, opacity: 0.8, marginLeft: 12 }}>— {buzzerTeam.name}</span>}
+              
             </div>
           ) : (
             <div style={{ textAlign: "center", color: "rgba(246,247,255,0.3)", fontSize: 18, fontWeight: 700, letterSpacing: 1, padding: "16px 0" }}>BUZZ IN…</div>

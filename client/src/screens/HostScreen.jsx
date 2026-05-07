@@ -452,7 +452,7 @@ export default function HostScreen({ state }) {
             <div style={{ display:"flex", alignItems:"center", gap:12, padding:"12px 16px", borderRadius:12, background:`${buzzerTeam?.color ?? "#ffdd75"}18`, border:`2px solid ${buzzerTeam?.color ?? "#ffdd75"}`, flexShrink:0 }}>
               <div style={{ fontSize:24, width:40, height:40, borderRadius:"50%", background:"rgba(255,255,255,0.1)", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>{buzz.emoji}</div>
               <div>
-                <div style={{ fontWeight:900, fontSize:16, color:buzzerTeam?.color ?? "#ffdd75" }}>{buzz.name} — {buzzerTeam?.name ?? ""}</div>
+                <div style={{ fontWeight:900, fontSize:16, color:buzzerTeam?.color ?? "#ffdd75" }}>{buzz.name}</div>
                 <div style={{ fontSize:12, color:"rgba(246,247,255,0.5)", marginTop:1 }}>buzzed in</div>
               </div>
             </div>
