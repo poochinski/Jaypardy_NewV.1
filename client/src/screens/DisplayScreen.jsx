@@ -427,49 +427,82 @@ export default function DisplayScreen({ state }) {
 
   // ─── Introducing categories ──────────────────────────────────────────────
   if (phase === "introducing" && board) {
-    return (
-      <div className="jp-root" style={{ minHeight: "100vh", display: "flex", flexDirection: "column" }}>
-        <ScoreStrip />
-        <div style={{ flex:1, display:"flex", flexDirection:"column", padding:12 }}>
-          {/* Board with revealed/hidden categories */}
-          <div className="jp-boardGrid">
-            {board.columns.map((col, colIndex) => {
-              const revealed = colIndex <= introIndex;
-              const isSpotlight = colIndex === introIndex;
-              return (
+    const totalCats = board.columns.length;
+    const allRevealed = introIndex >= totalCats - 1;
+    const currentCat = introIndex >= 0 ? board.columns[introIndex] : null;
+
+    // Before any category is revealed — show a "get ready" screen
+    if (introIndex < 0) {
+      return (
+        <div className="jp-root" style={{ minHeight:"100vh", display:"flex", flexDirection:"column" }}>
+          <ScoreStrip />
+          <div style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", textAlign:"center", gap:24, padding:40 }}>
+            <div style={{ fontSize:"clamp(48px,10vw,96px)", fontWeight:900, color:"#ffdd75", lineHeight:1, letterSpacing:-2 }}>JAYPARDY</div>
+            <div style={{ fontSize:"clamp(16px,3vw,24px)", color:"rgba(246,247,255,0.5)", fontWeight:700 }}>Get ready — categories coming up</div>
+          </div>
+        </div>
+      );
+    }
+
+    // All revealed — show full board
+    if (allRevealed) {
+      return (
+        <div className="jp-root" style={{ minHeight:"100vh" }}>
+          <ScoreStrip />
+          <div style={{ padding:12 }}>
+            <div className="jp-boardGrid">
+              {board.columns.map((col, colIndex) => (
                 <div className="jp-col" key={colIndex}>
-                  <div className="jp-cat" style={{
-                    background: isSpotlight
-                      ? "linear-gradient(180deg, rgba(255,221,117,0.3), rgba(255,221,117,0.1))"
-                      : revealed
-                      ? "linear-gradient(180deg, #0e2494, #091a72)"
-                      : "rgba(255,255,255,0.04)",
-                    border: isSpotlight ? "1px solid rgba(255,221,117,0.6)" : undefined,
-                    color: revealed ? "#fff" : "rgba(255,255,255,0.2)",
-                    transition: "all 0.4s ease",
-                    fontSize: revealed ? undefined : 20,
-                  }}>
-                    {revealed ? col.title : "?"}
-                  </div>
+                  <div className="jp-cat">{col.title}</div>
                   {col.clues.map((c, rowIndex) => (
                     <div key={`${colIndex}-${rowIndex}`} className="jp-cell"
-                      style={{ opacity: revealed ? 0.5 : 0.12, cursor:"default", fontWeight:900, color: revealed ? "#ffdd75" : "rgba(255,255,255,0.3)" }}>
-                      {`$${c.value}`}
+                      style={{ opacity:1, cursor:"default", fontWeight:900 }}>
+                      ${c.value}
                     </div>
                   ))}
                 </div>
-              );
-            })}
+              ))}
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // A category is being revealed — show it FULL SCREEN
+    return (
+      <div className="jp-root" style={{ minHeight:"100vh", display:"flex", flexDirection:"column" }}>
+        <ScoreStrip />
+        <div style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", textAlign:"center", padding:"40px 32px", gap:20 }}>
+
+          {/* Category number */}
+          <div style={{ fontSize:"clamp(14px,2vw,18px)", fontWeight:700, color:"rgba(246,247,255,0.4)", letterSpacing:3, textTransform:"uppercase" }}>
+            Category {introIndex + 1} of {totalCats}
           </div>
 
-          {/* Spotlight label at bottom */}
-          <div style={{ textAlign:"center", padding:"16px 0 8px", color:"rgba(246,247,255,0.35)", fontSize:14, fontWeight:700 }}>
-            {introIndex < 0
-              ? "Get ready — categories coming up…"
-              : introIndex < board.columns.length - 1
-              ? `${introIndex + 1} of ${board.columns.length} revealed`
-              : "All categories revealed!"
-            }
+          {/* Big category name */}
+          <div style={{
+            fontSize:"clamp(48px,9vw,100px)",
+            fontWeight:900,
+            color:"#ffdd75",
+            lineHeight:1.1,
+            letterSpacing:-1,
+            textShadow:"0 4px 0 rgba(0,0,0,0.4)",
+            maxWidth:900,
+          }}>
+            {currentCat.title}
+          </div>
+
+          {/* Dots showing progress */}
+          <div style={{ display:"flex", gap:10, marginTop:16 }}>
+            {board.columns.map((_, i) => (
+              <div key={i} style={{
+                width: i === introIndex ? 28 : 10,
+                height:10,
+                borderRadius:5,
+                background: i < introIndex ? "rgba(255,221,117,0.6)" : i === introIndex ? "#ffdd75" : "rgba(255,255,255,0.12)",
+                transition:"all 0.3s ease",
+              }} />
+            ))}
           </div>
         </div>
       </div>

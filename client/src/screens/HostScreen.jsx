@@ -218,95 +218,94 @@ export default function HostScreen({ state }) {
     if (phase === "introducing" && board) {
       const totalCats = board.columns.length;
       const allRevealed = introIndex >= totalCats - 1;
-      const currentCat = introIndex >= 0 ? board.columns[introIndex] : null;
-      const nextCat    = introIndex < totalCats - 1 ? board.columns[introIndex + 1] : null;
+      const nextCat = introIndex < totalCats - 1 ? board.columns[introIndex + 1] : null;
 
+      // Host sees the FULL board — all categories visible so they can review/swap
+      // The intro controls appear as a banner above the board
       return (
-        <div style={{ flex:1, display:"flex", flexDirection:"column", padding:"20px 24px", gap:16 }}>
+        <div style={{ flex:1, display:"flex", flexDirection:"column" }}>
 
-          {/* Progress */}
-          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-            <div style={{ fontWeight:900, color:"#ffdd75", fontSize:15 }}>
-              {introIndex < 0 ? "Ready to introduce categories" : allRevealed ? "All categories revealed!" : `Revealed ${introIndex + 1} of ${totalCats}`}
-            </div>
-            <div style={{ fontSize:12, color:"rgba(246,247,255,0.4)" }}>{totalCats} categories</div>
-          </div>
+          {/* Intro control banner */}
+          <div style={{ padding:"12px 16px", background:"rgba(255,221,117,0.06)", borderBottom:"1px solid rgba(255,221,117,0.2)", display:"flex", flexDirection:"column", gap:10 }}>
 
-          {/* Progress bar */}
-          <div style={{ height:4, background:"rgba(255,255,255,0.08)", borderRadius:2, overflow:"hidden" }}>
-            <div style={{ height:"100%", background:"#ffdd75", borderRadius:2, width:`${Math.max(0,(introIndex+1)/totalCats)*100}%`, transition:"width 0.3s ease" }} />
-          </div>
-
-          {/* Category dots */}
-          <div style={{ display:"flex", gap:6, justifyContent:"center" }}>
-            {board.columns.map((col, i) => (
-              <div key={i} style={{
-                padding:"4px 10px", borderRadius:999, fontSize:11, fontWeight:700,
-                background: i <= introIndex ? "rgba(255,221,117,0.2)" : "rgba(255,255,255,0.05)",
-                border: i === introIndex ? "1px solid rgba(255,221,117,0.6)" : i < introIndex ? "1px solid rgba(255,221,117,0.25)" : "1px solid rgba(255,255,255,0.08)",
-                color: i <= introIndex ? "#ffdd75" : "rgba(246,247,255,0.3)",
-                transition:"all 0.2s",
-              }}>
-                {i <= introIndex ? col.title : `?`}
+            {/* Progress */}
+            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+              <div style={{ fontWeight:900, color:"#ffdd75", fontSize:14 }}>
+                {introIndex < 0 ? "Ready — tap Reveal to start" : allRevealed ? "All revealed — ready to start!" : `${introIndex + 1} of ${totalCats} revealed`}
               </div>
-            ))}
-          </div>
-
-          {/* Current category being introduced */}
-          {currentCat && (
-            <div style={{ padding:"16px 20px", borderRadius:14, background:"rgba(255,221,117,0.08)", border:"1px solid rgba(255,221,117,0.3)" }}>
-              <div style={{ fontSize:11, fontWeight:700, color:"rgba(255,221,117,0.5)", textTransform:"uppercase", letterSpacing:1, marginBottom:6 }}>Currently spotlighted</div>
-              <div style={{ fontSize:22, fontWeight:900, color:"#ffdd75" }}>{currentCat.title}</div>
-              {introHints[introIndex] && (
-                <div style={{ fontSize:12, color:"rgba(246,247,255,0.5)", marginTop:6, fontStyle:"italic" }}>"{introHints[introIndex]}"</div>
-              )}
-            </div>
-          )}
-
-          {introIndex < 0 && (
-            <div style={{ padding:"14px 18px", borderRadius:12, background:"rgba(255,255,255,0.04)", border:"1px solid rgba(255,255,255,0.08)", textAlign:"center", color:"rgba(246,247,255,0.4)", fontSize:13 }}>
-              Tap "Reveal Next" to start introducing categories to players
-            </div>
-          )}
-
-          {/* Hint editor for next category */}
-          {nextCat && (
-            <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
-              <div style={{ fontSize:11, fontWeight:700, color:"rgba(246,247,255,0.4)", textTransform:"uppercase", letterSpacing:0.5 }}>
-                Hint for next category: <span style={{ color:"rgba(246,247,255,0.7)" }}>{nextCat.title}</span>
+              <div style={{ height:6, width:120, background:"rgba(255,255,255,0.08)", borderRadius:3, overflow:"hidden" }}>
+                <div style={{ height:"100%", background:"#ffdd75", borderRadius:3, width:`${Math.max(0,(introIndex+1)/totalCats)*100}%`, transition:"width 0.3s ease" }} />
               </div>
-              <div style={{ display:"flex", gap:8 }}>
+            </div>
+
+            {/* Hint editor for next category */}
+            {nextCat && (
+              <div style={{ display:"flex", gap:8, alignItems:"center" }}>
+                <div style={{ fontSize:11, color:"rgba(246,247,255,0.4)", flexShrink:0 }}>
+                  Note for <span style={{ color:"rgba(246,247,255,0.7)", fontWeight:700 }}>{nextCat.title}</span>:
+                </div>
                 <input
                   value={hintDraft}
                   onChange={(e) => setHintDraft(e.target.value)}
-                  placeholder="Optional reminder for yourself…"
+                  onBlur={() => { if (hintDraft) socket.emit("host:setIntroHint", { index: introIndex + 1, hint: hintDraft }); }}
+                  placeholder="Private reminder (optional)…"
                   maxLength={120}
-                  style={{ flex:1, padding:"10px 12px", fontSize:13, borderRadius:10, border:"1px solid rgba(255,255,255,0.15)", background:"rgba(255,255,255,0.07)", color:"#f6f7ff", outline:"none" }}
+                  style={{ flex:1, padding:"6px 10px", fontSize:12, borderRadius:8, border:"1px solid rgba(255,255,255,0.12)", background:"rgba(255,255,255,0.06)", color:"#f6f7ff", outline:"none" }}
                 />
-                <button
-                  onClick={() => { socket.emit("host:setIntroHint", { index: introIndex + 1, hint: hintDraft }); setHintDraft(""); }}
-                  style={{ padding:"10px 14px", borderRadius:10, border:"1px solid rgba(255,255,255,0.15)", background:"rgba(255,255,255,0.08)", color:"rgba(246,247,255,0.7)", fontSize:12, fontWeight:700, cursor:"pointer" }}>
-                  Save
-                </button>
               </div>
-            </div>
-          )}
+            )}
 
-          {/* Action buttons */}
-          <div style={{ display:"flex", flexDirection:"column", gap:10, marginTop:"auto" }}>
+            {/* Show current hint if one was saved */}
+            {introIndex >= 0 && introHints[introIndex] && (
+              <div style={{ fontSize:12, color:"rgba(255,221,117,0.6)", fontStyle:"italic", paddingLeft:4 }}>
+                📝 "{introHints[introIndex]}"
+              </div>
+            )}
+
+            {/* Action button */}
             {!allRevealed ? (
-              <button
-                onClick={() => socket.emit("host:revealNextCategory")}
-                style={{ padding:"16px", borderRadius:12, border:"none", background:"#ffdd75", color:"#000", fontSize:16, fontWeight:900, cursor:"pointer" }}>
+              <button onClick={() => { socket.emit("host:revealNextCategory"); setHintDraft(""); }}
+                style={{ padding:"10px 20px", borderRadius:10, border:"none", background:"#ffdd75", color:"#000", fontSize:14, fontWeight:900, cursor:"pointer", alignSelf:"flex-start" }}>
                 Reveal Next → {nextCat ? `"${nextCat.title}"` : ""}
               </button>
             ) : (
-              <button
-                onClick={() => socket.emit("host:startFromIntro")}
-                style={{ padding:"16px", borderRadius:12, border:"none", background:"#21c55d", color:"#fff", fontSize:16, fontWeight:900, cursor:"pointer" }}>
-                Start Game →
+              <button onClick={() => socket.emit("host:startFromIntro")}
+                style={{ padding:"10px 20px", borderRadius:10, border:"none", background:"#21c55d", color:"#fff", fontSize:14, fontWeight:900, cursor:"pointer", alignSelf:"flex-start" }}>
+                ✓ Start Game
               </button>
             )}
+          </div>
+
+          {/* Full board — host can see all categories and swap if needed */}
+          <div style={{ padding:12 }}>
+            <div style={{ fontSize:11, color:"rgba(246,247,255,0.35)", marginBottom:8, padding:"0 4px" }}>
+              Full board visible to you only — players see categories revealed one at a time on the display
+            </div>
+            <div className="jp-boardGrid">
+              {board.columns.map((col, colIndex) => (
+                <div key={col.id} className="jp-col">
+                  <button
+                    className="jp-cat"
+                    onClick={() => { setSwapMenu({ colIndex }); setSwapSearch(""); }}
+                    style={{
+                      cursor:"pointer", width:"100%", textAlign:"center",
+                      background: colIndex <= introIndex ? "linear-gradient(180deg,rgba(255,221,117,0.25),rgba(255,221,117,0.1))" : undefined,
+                      border: colIndex === introIndex ? "1px solid rgba(255,221,117,0.5)" : undefined,
+                    }}
+                    title="Tap to swap this category"
+                  >
+                    {col.title}
+                    {colIndex <= introIndex && <span style={{ marginLeft:6, fontSize:9, opacity:0.6 }}>✓</span>}
+                  </button>
+                  {col.clues.map((c, rowIndex) => (
+                    <div key={c.id} className="jp-cell" style={{ opacity:0.4, cursor:"default", fontWeight:900 }}>
+                      ${c.value}
+                      {c.isDD && <span className="jp-dd">DD</span>}
+                    </div>
+                  ))}
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       );
