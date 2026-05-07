@@ -244,6 +244,8 @@ function freshState() {
     buzzerType:      "standard",  // "standard" | "puzzle"
     puzzleActive:    false,       // true when puzzle buzzer is live on player screens
     puzzleSeed:      null,        // current puzzle config (shapes, order) — same for all players
+    introIndex:      -1,          // -1 = not introducing, 0-5 = which category is spotlighted
+    introHints:      ["","","","","",""],  // host-only hints per category
   };
 }
 
@@ -458,16 +460,39 @@ io.on("connection", (socket) => {
     if (state.phase !== "lobby") return;
     const board = await buildBoard(1);
     if (!board) return;
-    const { playerId, teamId } = pickRandomControlPlayer(state.players);
     state = {
       ...state,
       board,
-      phase:           "board",
-      currentClue:     null,
-      buzz:            freshBuzz(),
-      controlPlayerId: playerId,
-      controlTeamId:   teamId,
+      phase:       "introducing",
+      currentClue: null,
+      buzz:        freshBuzz(),
+      introIndex:  -1,
+      introHints:  ["","","","","",""],
     };
+    emitState();
+  });
+
+  // ─── Category introduction events ───────────────────────────────────────
+  socket.on("host:revealNextCategory", () => {
+    if (state.phase !== "introducing") return;
+    const nextIndex = state.introIndex + 1;
+    state = { ...state, introIndex: nextIndex };
+    emitState();
+  });
+
+  socket.on("host:setIntroHint", ({ index, hint }) => {
+    if (state.phase !== "introducing") return;
+    if (index < 0 || index > 5) return;
+    const newHints = [...state.introHints];
+    newHints[index] = (hint || "").slice(0, 120);
+    state = { ...state, introHints: newHints };
+    emitState();
+  });
+
+  socket.on("host:startFromIntro", () => {
+    if (state.phase !== "introducing") return;
+    const { playerId, teamId } = pickRandomControlPlayer(state.players);
+    state = { ...state, phase: "board", introIndex: -1, controlPlayerId: playerId, controlTeamId: teamId };
     emitState();
   });
 
@@ -494,7 +519,7 @@ io.on("connection", (socket) => {
     if (!state.board?.columns.every((col) => col.clues.every((c) => c.used))) return;
     const newBoard = await buildBoard(2);
     if (!newBoard) return;
-    state = { ...state, board: newBoard, phase: "board", currentClue: null, wager: null, buzz: freshBuzz() };
+    state = { ...state, board: newBoard, phase: "introducing", currentClue: null, wager: null, buzz: freshBuzz(), introIndex: -1, introHints: ["","","","","",""] };
     emitState();
   });
 

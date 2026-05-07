@@ -4,14 +4,15 @@ import { playDDChime, playCorrect, playWrong } from "../sounds";
 import { socket } from "../socket";
 
 export default function DisplayScreen({ state }) {
-  const phase   = state?.phase;
-  const board   = state?.board;
-  const clue    = state?.currentClue;
-  const buzz    = state?.buzz;
-  const teams   = state?.teams ?? [];
-  const players = state?.players ?? [];
+  const phase      = state?.phase;
+  const board      = state?.board;
+  const clue       = state?.currentClue;
+  const buzz       = state?.buzz;
+  const teams      = state?.teams ?? [];
+  const players    = state?.players ?? [];
   const paused       = state?.paused ?? false;
   const pauseMessage = state?.pauseMessage ?? "";
+  const introIndex   = state?.introIndex ?? -1;
 
   const [revealAnswer, setRevealAnswer] = useState(null);
   const [wrongFlash,   setWrongFlash]   = useState(null);
@@ -419,6 +420,57 @@ export default function DisplayScreen({ state }) {
               </div>
             );
           })}
+        </div>
+      </div>
+    );
+  }
+
+  // ─── Introducing categories ──────────────────────────────────────────────
+  if (phase === "introducing" && board) {
+    return (
+      <div className="jp-root" style={{ minHeight: "100vh", display: "flex", flexDirection: "column" }}>
+        <ScoreStrip />
+        <div style={{ flex:1, display:"flex", flexDirection:"column", padding:12 }}>
+          {/* Board with revealed/hidden categories */}
+          <div className="jp-boardGrid">
+            {board.columns.map((col, colIndex) => {
+              const revealed = colIndex <= introIndex;
+              const isSpotlight = colIndex === introIndex;
+              return (
+                <div className="jp-col" key={colIndex}>
+                  <div className="jp-cat" style={{
+                    background: isSpotlight
+                      ? "linear-gradient(180deg, rgba(255,221,117,0.3), rgba(255,221,117,0.1))"
+                      : revealed
+                      ? "linear-gradient(180deg, #0e2494, #091a72)"
+                      : "rgba(255,255,255,0.04)",
+                    border: isSpotlight ? "1px solid rgba(255,221,117,0.6)" : undefined,
+                    color: revealed ? "#fff" : "rgba(255,255,255,0.2)",
+                    transition: "all 0.4s ease",
+                    fontSize: revealed ? undefined : 20,
+                  }}>
+                    {revealed ? col.title : "?"}
+                  </div>
+                  {col.clues.map((c, rowIndex) => (
+                    <div key={`${colIndex}-${rowIndex}`} className="jp-cell"
+                      style={{ opacity: revealed ? 0.5 : 0.12, cursor:"default", fontWeight:900, color: revealed ? "#ffdd75" : "rgba(255,255,255,0.3)" }}>
+                      {`$${c.value}`}
+                    </div>
+                  ))}
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Spotlight label at bottom */}
+          <div style={{ textAlign:"center", padding:"16px 0 8px", color:"rgba(246,247,255,0.35)", fontSize:14, fontWeight:700 }}>
+            {introIndex < 0
+              ? "Get ready — categories coming up…"
+              : introIndex < board.columns.length - 1
+              ? `${introIndex + 1} of ${board.columns.length} revealed`
+              : "All categories revealed!"
+            }
+          </div>
         </div>
       </div>
     );

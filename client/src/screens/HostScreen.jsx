@@ -10,6 +10,7 @@ export default function HostScreen({ state }) {
   const [showFinalSetup,   setShowFinalSetup]   = useState(false);
   const [allCategories,    setAllCategories]    = useState([]);
   const [pauseMenuOpen,    setPauseMenuOpen]    = useState(false);
+  const [hintDraft,        setHintDraft]        = useState("");
 
   // ── Latency map ───────────────────────────────────────────────────────────
   const [latencyMap, setLatencyMap] = useState({});
@@ -88,6 +89,8 @@ export default function HostScreen({ state }) {
   const clue         = state?.currentClue ?? null;
   const phase        = state?.phase ?? "lobby";
   const paused       = state?.paused ?? false;
+  const introIndex   = state?.introIndex ?? -1;
+  const introHints   = state?.introHints ?? ["","","","","",""];
   const pauseMessage = state?.pauseMessage ?? "";
   const buzzerType   = state?.buzzerType ?? "standard";
   const puzzleActive = state?.puzzleActive ?? false;
@@ -210,6 +213,104 @@ export default function HostScreen({ state }) {
 
   // ─── Main area ────────────────────────────────────────────────────────────
   const MainArea = () => {
+
+    // ── Category introductions ────────────────────────────────────────────
+    if (phase === "introducing" && board) {
+      const totalCats = board.columns.length;
+      const allRevealed = introIndex >= totalCats - 1;
+      const currentCat = introIndex >= 0 ? board.columns[introIndex] : null;
+      const nextCat    = introIndex < totalCats - 1 ? board.columns[introIndex + 1] : null;
+
+      return (
+        <div style={{ flex:1, display:"flex", flexDirection:"column", padding:"20px 24px", gap:16 }}>
+
+          {/* Progress */}
+          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+            <div style={{ fontWeight:900, color:"#ffdd75", fontSize:15 }}>
+              {introIndex < 0 ? "Ready to introduce categories" : allRevealed ? "All categories revealed!" : `Revealed ${introIndex + 1} of ${totalCats}`}
+            </div>
+            <div style={{ fontSize:12, color:"rgba(246,247,255,0.4)" }}>{totalCats} categories</div>
+          </div>
+
+          {/* Progress bar */}
+          <div style={{ height:4, background:"rgba(255,255,255,0.08)", borderRadius:2, overflow:"hidden" }}>
+            <div style={{ height:"100%", background:"#ffdd75", borderRadius:2, width:`${Math.max(0,(introIndex+1)/totalCats)*100}%`, transition:"width 0.3s ease" }} />
+          </div>
+
+          {/* Category dots */}
+          <div style={{ display:"flex", gap:6, justifyContent:"center" }}>
+            {board.columns.map((col, i) => (
+              <div key={i} style={{
+                padding:"4px 10px", borderRadius:999, fontSize:11, fontWeight:700,
+                background: i <= introIndex ? "rgba(255,221,117,0.2)" : "rgba(255,255,255,0.05)",
+                border: i === introIndex ? "1px solid rgba(255,221,117,0.6)" : i < introIndex ? "1px solid rgba(255,221,117,0.25)" : "1px solid rgba(255,255,255,0.08)",
+                color: i <= introIndex ? "#ffdd75" : "rgba(246,247,255,0.3)",
+                transition:"all 0.2s",
+              }}>
+                {i <= introIndex ? col.title : `?`}
+              </div>
+            ))}
+          </div>
+
+          {/* Current category being introduced */}
+          {currentCat && (
+            <div style={{ padding:"16px 20px", borderRadius:14, background:"rgba(255,221,117,0.08)", border:"1px solid rgba(255,221,117,0.3)" }}>
+              <div style={{ fontSize:11, fontWeight:700, color:"rgba(255,221,117,0.5)", textTransform:"uppercase", letterSpacing:1, marginBottom:6 }}>Currently spotlighted</div>
+              <div style={{ fontSize:22, fontWeight:900, color:"#ffdd75" }}>{currentCat.title}</div>
+              {introHints[introIndex] && (
+                <div style={{ fontSize:12, color:"rgba(246,247,255,0.5)", marginTop:6, fontStyle:"italic" }}>"{introHints[introIndex]}"</div>
+              )}
+            </div>
+          )}
+
+          {introIndex < 0 && (
+            <div style={{ padding:"14px 18px", borderRadius:12, background:"rgba(255,255,255,0.04)", border:"1px solid rgba(255,255,255,0.08)", textAlign:"center", color:"rgba(246,247,255,0.4)", fontSize:13 }}>
+              Tap "Reveal Next" to start introducing categories to players
+            </div>
+          )}
+
+          {/* Hint editor for next category */}
+          {nextCat && (
+            <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+              <div style={{ fontSize:11, fontWeight:700, color:"rgba(246,247,255,0.4)", textTransform:"uppercase", letterSpacing:0.5 }}>
+                Hint for next category: <span style={{ color:"rgba(246,247,255,0.7)" }}>{nextCat.title}</span>
+              </div>
+              <div style={{ display:"flex", gap:8 }}>
+                <input
+                  value={hintDraft}
+                  onChange={(e) => setHintDraft(e.target.value)}
+                  placeholder="Optional reminder for yourself…"
+                  maxLength={120}
+                  style={{ flex:1, padding:"10px 12px", fontSize:13, borderRadius:10, border:"1px solid rgba(255,255,255,0.15)", background:"rgba(255,255,255,0.07)", color:"#f6f7ff", outline:"none" }}
+                />
+                <button
+                  onClick={() => { socket.emit("host:setIntroHint", { index: introIndex + 1, hint: hintDraft }); setHintDraft(""); }}
+                  style={{ padding:"10px 14px", borderRadius:10, border:"1px solid rgba(255,255,255,0.15)", background:"rgba(255,255,255,0.08)", color:"rgba(246,247,255,0.7)", fontSize:12, fontWeight:700, cursor:"pointer" }}>
+                  Save
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Action buttons */}
+          <div style={{ display:"flex", flexDirection:"column", gap:10, marginTop:"auto" }}>
+            {!allRevealed ? (
+              <button
+                onClick={() => socket.emit("host:revealNextCategory")}
+                style={{ padding:"16px", borderRadius:12, border:"none", background:"#ffdd75", color:"#000", fontSize:16, fontWeight:900, cursor:"pointer" }}>
+                Reveal Next → {nextCat ? `"${nextCat.title}"` : ""}
+              </button>
+            ) : (
+              <button
+                onClick={() => socket.emit("host:startFromIntro")}
+                style={{ padding:"16px", borderRadius:12, border:"none", background:"#21c55d", color:"#fff", fontSize:16, fontWeight:900, cursor:"pointer" }}>
+                Start Game →
+              </button>
+            )}
+          </div>
+        </div>
+      );
+    }
 
     if (phase === "finalWager" && finalJaypardy) {
       return (
@@ -492,7 +593,7 @@ export default function HostScreen({ state }) {
             {assignedPlayers.map((p) => {
               const t = teamById[p.teamId];
               const isControl = p.id === controlPlayerId;
-              const gameActive = phase !== "lobby" && phase !== "gameOver" && !isFinal;
+              const gameActive = phase !== "lobby" && phase !== "introducing" && phase !== "gameOver" && !isFinal;
               return (
                 <div
                   key={p.id}
@@ -534,6 +635,7 @@ export default function HostScreen({ state }) {
             <div className="jp-controlsGrid">
 
               <button className="jp-btn" onClick={() => socket.emit("host:startJaypardy")} disabled={phase !== "lobby"}>Start Game</button>
+              {phase === "introducing" && <button className="jp-btn" onClick={() => socket.emit("host:startFromIntro")} style={{ background:"rgba(33,197,93,0.15)", borderColor:"rgba(33,197,93,0.4)", color:"#86efac" }}>Skip Intros →</button>}
               <button className="jp-btn" onClick={() => socket.emit("host:newBoard")} disabled={phase === "lobby"}>New Board</button>
 
               <button className="jp-btn" disabled={!canStartRound2} onClick={() => socket.emit("host:startRound2")}
