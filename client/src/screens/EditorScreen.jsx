@@ -45,6 +45,7 @@ export default function EditorScreen() {
   const [savedFlash,    setSavedFlash]    = useState(false);
   const [editingCatName, setEditingCatName] = useState(false);
   const [catNameDraft,   setCatNameDraft]   = useState("");
+  const [hintDraft,      setHintDraft]      = useState("");
   const catNameInputRef = useRef(null);
 
   // ── Themes state ──────────────────────────────────────────────────────────
@@ -81,6 +82,10 @@ export default function EditorScreen() {
 
   // ── Category helpers ──────────────────────────────────────────────────────
   const selectedCat  = categories.find((c) => c.category === selected);
+  // Sync hint draft when selected category changes
+  useEffect(() => {
+    setHintDraft(selectedCat?.hint || "");
+  }, [selected]);
   const filteredCats = categories.filter((c) =>
     c.category.toLowerCase().includes(search.toLowerCase())
   );
@@ -95,9 +100,15 @@ export default function EditorScreen() {
     setTimeout(() => setThemeSavedFlash(false), 1800);
   };
 
-  const saveClues = (newClues) => {
+  const saveClues = (newClues, hint) => {
     if (!selected) return;
-    socket.emit("editor:saveCategory", { name: selected, clues: newClues });
+    socket.emit("editor:saveCategory", { name: selected, clues: newClues, hint: hint ?? hintDraft });
+    flashSaved();
+  };
+
+  const saveHint = (hint) => {
+    if (!selected || !selectedCat) return;
+    socket.emit("editor:saveCategory", { name: selected, clues: selectedCat.clues, hint });
     flashSaved();
   };
 
@@ -354,6 +365,28 @@ export default function EditorScreen() {
                     </div>
                   )}
                   <div style={{ fontSize:12, color:"rgba(246,247,255,0.4)", marginTop:4 }}>{selectedCat?.clues.length ?? 0} clues</div>
+                </div>
+
+                {/* Category hint */}
+                <div style={{ padding:"12px 16px", background:"rgba(255,255,255,0.03)", borderRadius:12, border:"1px solid rgba(255,255,255,0.07)", marginBottom:8 }}>
+                  <div style={{ fontSize:11, fontWeight:700, color:"rgba(246,247,255,0.4)", textTransform:"uppercase", letterSpacing:0.5, marginBottom:8 }}>
+                    Category Hint <span style={{ fontWeight:400, textTransform:"none", color:"rgba(246,247,255,0.25)" }}>(shown to host during category introductions)</span>
+                  </div>
+                  <div style={{ display:"flex", gap:8 }}>
+                    <input
+                      value={hintDraft}
+                      onChange={(e) => setHintDraft(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === "Enter") { saveHint(hintDraft); e.target.blur(); } }}
+                      placeholder="e.g. Clues about 90s hip hop artists and albums…"
+                      maxLength={120}
+                      style={{ flex:1, padding:"8px 12px", fontSize:13, borderRadius:8, border:"1px solid rgba(255,255,255,0.12)", background:"rgba(255,255,255,0.06)", color:"#f6f7ff", outline:"none" }}
+                    />
+                    <button onClick={() => saveHint(hintDraft)}
+                      style={{ padding:"8px 14px", borderRadius:8, fontSize:12, fontWeight:700, border:"none", background:"rgba(255,221,117,0.15)", color:"#ffdd75", cursor:"pointer", flexShrink:0 }}>
+                      Save
+                    </button>
+                  </div>
+                  <div style={{ fontSize:11, color:"rgba(246,247,255,0.25)", marginTop:6 }}>Not shown to players</div>
                 </div>
                 {savedFlash && <div style={{ fontSize:13, fontWeight:700, color:"#21c55d", flexShrink:0 }}>Saved ✓</div>}
               </div>

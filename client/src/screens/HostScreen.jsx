@@ -10,7 +10,6 @@ export default function HostScreen({ state }) {
   const [showFinalSetup,   setShowFinalSetup]   = useState(false);
   const [allCategories,    setAllCategories]    = useState([]);
   const [pauseMenuOpen,    setPauseMenuOpen]    = useState(false);
-  const [hintDraft,        setHintDraft]        = useState("");
 
   // ── Latency map ───────────────────────────────────────────────────────────
   const [latencyMap, setLatencyMap] = useState({});
@@ -90,7 +89,6 @@ export default function HostScreen({ state }) {
   const phase        = state?.phase ?? "lobby";
   const paused       = state?.paused ?? false;
   const introIndex   = state?.introIndex ?? -1;
-  const introHints   = state?.introHints ?? ["","","","","",""];
   const pauseMessage = state?.pauseMessage ?? "";
   const buzzerType   = state?.buzzerType ?? "standard";
   const puzzleActive = state?.puzzleActive ?? false;
@@ -238,33 +236,16 @@ export default function HostScreen({ state }) {
               </div>
             </div>
 
-            {/* Hint editor for next category */}
-            {nextCat && (
-              <div style={{ display:"flex", gap:8, alignItems:"center" }}>
-                <div style={{ fontSize:11, color:"rgba(246,247,255,0.4)", flexShrink:0 }}>
-                  Note for <span style={{ color:"rgba(246,247,255,0.7)", fontWeight:700 }}>{nextCat.title}</span>:
-                </div>
-                <input
-                  value={hintDraft}
-                  onChange={(e) => setHintDraft(e.target.value)}
-                  onBlur={() => { if (hintDraft) socket.emit("host:setIntroHint", { index: introIndex + 1, hint: hintDraft }); }}
-                  placeholder="Private reminder (optional)…"
-                  maxLength={120}
-                  style={{ flex:1, padding:"6px 10px", fontSize:12, borderRadius:8, border:"1px solid rgba(255,255,255,0.12)", background:"rgba(255,255,255,0.06)", color:"#f6f7ff", outline:"none" }}
-                />
-              </div>
-            )}
-
-            {/* Show current hint if one was saved */}
-            {introIndex >= 0 && introHints[introIndex] && (
+            {/* Show hint from board if one was set in the editor */}
+            {introIndex >= 0 && board.columns[introIndex]?.hint && (
               <div style={{ fontSize:12, color:"rgba(255,221,117,0.6)", fontStyle:"italic", paddingLeft:4 }}>
-                📝 "{introHints[introIndex]}"
+                📝 {board.columns[introIndex].hint}
               </div>
             )}
 
             {/* Action button */}
             {!allRevealed ? (
-              <button onClick={() => { socket.emit("host:revealNextCategory"); setHintDraft(""); }}
+              <button onClick={() => socket.emit("host:revealNextCategory")}
                 style={{ padding:"10px 20px", borderRadius:10, border:"none", background:"#ffdd75", color:"#000", fontSize:14, fontWeight:900, cursor:"pointer", alignSelf:"flex-start" }}>
                 Reveal Next → {nextCat ? `"${nextCat.title}"` : ""}
               </button>

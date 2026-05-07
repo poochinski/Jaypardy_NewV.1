@@ -34,9 +34,12 @@ async function initDb() {
     CREATE TABLE IF NOT EXISTS categories (
       name        TEXT PRIMARY KEY,
       clues       JSONB NOT NULL DEFAULT '[]',
+      hint        TEXT NOT NULL DEFAULT '',
       created_at  TIMESTAMPTZ DEFAULT NOW()
     )
   `);
+  // Add hint column if it doesn't exist (migration for existing DBs)
+  await pool.query(`ALTER TABLE categories ADD COLUMN IF NOT EXISTS hint TEXT NOT NULL DEFAULT ''`);
   if (QUESTION_BANK.length > 0) {
     const values = QUESTION_BANK.map((_, i) => `($${i * 2 + 1}, $${i * 2 + 2})`).join(", ");
     const params = QUESTION_BANK.flatMap((cat) => [cat.category, JSON.stringify(cat.clues)]);
@@ -52,8 +55,8 @@ async function initDb() {
 // ─── Category DB helpers ──────────────────────────────────────────────────────
 
 async function getAllCategories() {
-  const { rows } = await pool.query("SELECT name, clues FROM categories ORDER BY name ASC");
-  return rows.map((r) => ({ category: r.name, clues: r.clues }));
+  const { rows } = await pool.query("SELECT name, clues, hint FROM categories ORDER BY name ASC");
+  return rows.map((r) => ({ category: r.name, clues: r.clues, hint: r.hint || "" }));
 }
 
 async function getCategoryClues(name) {
@@ -61,11 +64,11 @@ async function getCategoryClues(name) {
   return rows[0]?.clues ?? null;
 }
 
-async function upsertCategory(name, clues) {
+async function upsertCategory(name, clues, hint = "") {
   await pool.query(
-    `INSERT INTO categories (name, clues) VALUES ($1, $2)
-     ON CONFLICT (name) DO UPDATE SET clues = $2`,
-    [name, JSON.stringify(clues)]
+    `INSERT INTO categories (name, clues, hint) VALUES ($1, $2, $3)
+     ON CONFLICT (name) DO UPDATE SET clues = $2, hint = $3`,
+    [name, JSON.stringify(clues), hint || ""]
   );
 }
 
@@ -202,6 +205,7 @@ async function buildBoard(round = 1) {
     const chosen = pickFiveClues(c.clues);
     return {
       id: `c${ci}`, title: c.category,
+      hint:  c.hint || "",
       clues: chosen.map((cl, ri) => ({
         id: `c${ci}r${ri}`, value: values[ri],
         question: cl.q, answer: cl.a, used: false, isDD: false,
@@ -245,7 +249,6 @@ function freshState() {
     puzzleActive:    false,       // true when puzzle buzzer is live on player screens
     puzzleSeed:      null,        // current puzzle config (shapes, order) — same for all players
     introIndex:      -1,          // -1 = not introducing, 0-5 = which category is spotlighted
-    introHints:      ["","","","","",""],  // host-only hints per category
   };
 }
 
@@ -467,7 +470,6 @@ io.on("connection", (socket) => {
       currentClue: null,
       buzz:        freshBuzz(),
       introIndex:  -1,
-      introHints:  ["","","","","",""],
     };
     emitState();
   });
@@ -477,15 +479,6 @@ io.on("connection", (socket) => {
     if (state.phase !== "introducing") return;
     const nextIndex = state.introIndex + 1;
     state = { ...state, introIndex: nextIndex };
-    emitState();
-  });
-
-  socket.on("host:setIntroHint", ({ index, hint }) => {
-    if (state.phase !== "introducing") return;
-    if (index < 0 || index > 5) return;
-    const newHints = [...state.introHints];
-    newHints[index] = (hint || "").slice(0, 120);
-    state = { ...state, introHints: newHints };
     emitState();
   });
 
@@ -519,7 +512,7 @@ io.on("connection", (socket) => {
     if (!state.board?.columns.every((col) => col.clues.every((c) => c.used))) return;
     const newBoard = await buildBoard(2);
     if (!newBoard) return;
-    state = { ...state, board: newBoard, phase: "introducing", currentClue: null, wager: null, buzz: freshBuzz(), introIndex: -1, introHints: ["","","","","",""] };
+    state = { ...state, board: newBoard, phase: "introducing", currentClue: null, wager: null, buzz: freshBuzz(), introIndex: -1 };
     emitState();
   });
 
@@ -832,10 +825,10 @@ io.on("connection", (socket) => {
     try { socket.emit("editor:data", await getAllCategories()); }
     catch (e) { console.error("[editor] getAll error:", e.message); }
   });
-  socket.on("editor:saveCategory", async ({ name, clues }) => {
+  socket.on("editor:saveCategory", async ({ name, clues, hint }) => {
     if (!name?.trim() || !Array.isArray(clues)) return;
     try {
-      await upsertCategory(name.trim(), clues);
+      await upsertCategory(name.trim(), clues, hint || "");
       await refreshCategoryCache();
       socket.emit("editor:data", await getAllCategories());
       io.emit("categories:update", categoryCache.map((c) => c.category));
