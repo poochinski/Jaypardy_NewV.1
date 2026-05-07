@@ -289,21 +289,32 @@ export default function DisplayScreen({ state }) {
 
   // ─── Full screen clue view ────────────────────────────────────────────────
   if ((phase === "clue" || phase === "dailyDoubleClue") && clue) {
-    const buzzer     = buzz?.locked ? buzz : null;
-    const buzzerTeam = buzzer ? teamById[buzzer.teamId] : null;
+    const buzzer      = buzz?.locked ? buzz : null;
+    const buzzerTeam  = buzzer ? teamById[buzzer.teamId] : null;
+    const isMediaClue = !!clue.mediaUrl && clue.mediaType === "image";
+
     return (
       <div className="jp-root" style={{ minHeight: "100vh", display: "flex", flexDirection: "column" }}>
         <ScoreStrip />
-        <div style={{ flex: 1, display: "flex", flexDirection: "column", padding: 40 }}>
-          <div style={{ textAlign: "center", marginBottom: 32 }}>
+        <div style={{ flex: 1, display: "flex", flexDirection: "column", padding: isMediaClue ? "20px 32px" : 40 }}>
+          <div style={{ textAlign: "center", marginBottom: isMediaClue ? 16 : 32 }}>
             <div style={{ fontSize: 18, fontWeight: 700, color: "rgba(246,247,255,0.5)", textTransform: "uppercase", letterSpacing: 2, marginBottom: 8 }}>{clue.category}</div>
             <div style={{ fontSize: 36, fontWeight: 900, color: "#ffdd75" }}>
               {phase === "dailyDoubleClue" ? `Daily Double — $${state.wager?.amount?.toLocaleString() ?? "?"}` : `$${clue.value}`}
             </div>
           </div>
-          <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", textAlign: "center" }}>
-            <div style={{ fontSize: "clamp(28px, 5vw, 64px)", fontWeight: 900, lineHeight: 1.3, color: "#ffffff", maxWidth: 900 }}>{clue.question}</div>
-          </div>
+
+          {isMediaClue ? (
+            <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <img src={clue.mediaUrl} alt="clue"
+                style={{ maxWidth: "100%", maxHeight: "clamp(280px, 52vh, 560px)", borderRadius: 16, boxShadow: "0 8px 40px rgba(0,0,0,0.5)", objectFit: "contain" }} />
+            </div>
+          ) : (
+            <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", textAlign: "center" }}>
+              <div style={{ fontSize: "clamp(28px, 5vw, 64px)", fontWeight: 900, lineHeight: 1.3, color: "#ffffff", maxWidth: 900 }}>{clue.question}</div>
+            </div>
+          )}
+
           {wrongFlash && (
             <div style={{ textAlign: "center", padding: "16px 24px", borderRadius: 16, background: "rgba(239,68,68,0.20)", border: "1px solid rgba(239,68,68,0.45)", marginBottom: 16, fontSize: 22, fontWeight: 900, color: "#fca5a5" }}>
               {wrongFlash.emoji} {wrongFlash.name} — WRONG
@@ -312,7 +323,6 @@ export default function DisplayScreen({ state }) {
           {buzzer ? (
             <div style={{ textAlign: "center", padding: "20px 32px", borderRadius: 20, background: `${buzzerTeam?.color ?? "#ffdd75"}22`, border: `2px solid ${buzzerTeam?.color ?? "#ffdd75"}`, fontSize: 32, fontWeight: 900, color: buzzerTeam?.color ?? "#ffdd75", letterSpacing: 0.5 }}>
               {buzzer.emoji} {buzzer.name}
-              
             </div>
           ) : (
             <div style={{ textAlign: "center", color: "rgba(246,247,255,0.3)", fontSize: 18, fontWeight: 700, letterSpacing: 1, padding: "16px 0" }}>BUZZ IN…</div>

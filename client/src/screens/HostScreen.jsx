@@ -415,6 +415,7 @@ export default function HostScreen({ state }) {
     }
 
     if (isClueActive && clue) {
+      const isMediaClue = !!clue.mediaUrl && clue.mediaType === "image";
       return (
         <div style={{ flex:1, display:"flex", flexDirection:"column", padding:"20px 28px", gap:14 }}>
           <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:10, flexShrink:0 }}>
@@ -422,10 +423,27 @@ export default function HostScreen({ state }) {
             <div style={{ padding:"5px 16px", borderRadius:999, background:"rgba(255,221,117,0.18)", border:"1px solid rgba(255,221,117,0.45)", fontSize:14, fontWeight:900, color:"#ffdd75" }}>
               {phase === "dailyDoubleClue" ? `Daily Double — $${state?.wager?.amount?.toLocaleString() ?? "?"}` : `$${clue.value}`}
             </div>
+            {isMediaClue && <div style={{ padding:"4px 10px", borderRadius:999, background:"rgba(99,179,237,0.15)", border:"1px solid rgba(99,179,237,0.35)", fontSize:11, fontWeight:700, color:"#90cdf4" }}>🖼️ Image Clue</div>}
           </div>
-          <div style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"center", textAlign:"center" }}>
-            <div style={{ fontSize:"clamp(22px, 3vw, 36px)", fontWeight:900, color:"#ffffff", lineHeight:1.3 }}>{clue.question}</div>
-          </div>
+
+          {isMediaClue ? (
+            <div style={{ display:"flex", gap:14, flex:1 }}>
+              {/* Thumbnail for host */}
+              <div style={{ flexShrink:0, display:"flex", alignItems:"center", justifyContent:"center" }}>
+                <img src={clue.mediaUrl} alt="clue" style={{ maxWidth:200, maxHeight:150, borderRadius:10, border:"1px solid rgba(255,255,255,0.12)", objectFit:"contain" }} />
+              </div>
+              {/* Private question text */}
+              <div style={{ flex:1, display:"flex", flexDirection:"column", justifyContent:"center", gap:8 }}>
+                <div style={{ fontSize:11, fontWeight:700, color:"rgba(99,179,237,0.6)", textTransform:"uppercase", letterSpacing:0.5 }}>Your private clue text</div>
+                <div style={{ fontSize:16, fontWeight:700, color:"#fff", lineHeight:1.4 }}>{clue.question || <span style={{ opacity:0.35, fontStyle:"italic" }}>No clue text — read from image</span>}</div>
+              </div>
+            </div>
+          ) : (
+            <div style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"center", textAlign:"center" }}>
+              <div style={{ fontSize:"clamp(22px, 3vw, 36px)", fontWeight:900, color:"#ffffff", lineHeight:1.3 }}>{clue.question}</div>
+            </div>
+          )}
+
           <div style={{ display:"flex", alignItems:"center", gap:10, padding:"10px 14px", borderRadius:10, background:"rgba(255,221,117,0.07)", border:"1px solid rgba(255,221,117,0.25)", flexShrink:0 }}>
             <div style={{ fontSize:10, fontWeight:900, color:"rgba(255,221,117,0.55)", textTransform:"uppercase", letterSpacing:1, flexShrink:0 }}>Answer</div>
             <div style={{ fontWeight:900, color:"#ffdd75", fontSize:15 }}>{clue.answer}</div>
@@ -502,6 +520,7 @@ export default function HostScreen({ state }) {
                       style={{ opacity: c.used ? 0.3 : 1, cursor: c.used ? "not-allowed" : pickingDD && !isEligibleDD ? "not-allowed" : "pointer", outline: c.isDD ? "3px solid rgba(255,215,79,0.9)" : isEligibleDD ? "2px dashed rgba(255,215,79,0.6)" : "none" }}>
                       ${c.value}
                       {c.isDD && <span className="jp-dd">DD</span>}
+                      {c.mediaUrl && <span style={{ position:"absolute", bottom:6, left:8, fontSize:11 }}>🖼️</span>}
                     </button>
                   );
                 })}

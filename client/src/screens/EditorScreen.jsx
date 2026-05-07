@@ -46,7 +46,9 @@ export default function EditorScreen() {
   const [editingCatName, setEditingCatName] = useState(false);
   const [catNameDraft,   setCatNameDraft]   = useState("");
   const [hintDraft,      setHintDraft]      = useState("");
+  const [uploading,      setUploading]      = useState(false);
   const catNameInputRef = useRef(null);
+  const fileInputRef    = useRef(null);
 
   // ── Themes state ──────────────────────────────────────────────────────────
   const [themes,           setThemes]           = useState({});
@@ -140,10 +142,12 @@ export default function EditorScreen() {
 
   const handleSaveClue = () => {
     if (!editingClue || !selectedCat) return;
-    const { q, a, d, index } = editingClue;
-    if (!q?.trim() || !a?.trim()) return;
-    const clueObj = { q: q.trim(), a: a.trim() };
+    const { q, a, d, index, mediaUrl, mediaType, publicId } = editingClue;
+    if (!a?.trim()) return;
+    // For media clues, q can be empty (display shows image, host reads privately)
+    const clueObj = { q: (q || "").trim(), a: a.trim() };
     if (d) clueObj.d = d;
+    if (mediaUrl) { clueObj.mediaUrl = mediaUrl; clueObj.mediaType = mediaType || "image"; clueObj.publicId = publicId; }
     const newClues = index === "new"
       ? [...selectedCat.clues, clueObj]
       : selectedCat.clues.map((cl, i) => i === index ? clueObj : cl);
@@ -176,6 +180,35 @@ export default function EditorScreen() {
     setEditingClue(null);
     setEditingCatName(false);
     setActiveTab(TAB_CLUES);
+  };
+
+  const handleMediaUpload = async (file) => {
+    if (!file) return;
+    setUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      const res = await fetch("/api/upload", { method: "POST", body: formData });
+      if (!res.ok) throw new Error("Upload failed");
+      const data = await res.json();
+      setEditingClue((p) => ({ ...p, mediaUrl: data.url, mediaType: data.resource_type, publicId: data.public_id }));
+    } catch (e) {
+      console.error("Upload error:", e);
+      alert("Upload failed — check your Cloudinary credentials");
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleRemoveMedia = async () => {
+    if (!editingClue?.publicId) {
+      setEditingClue((p) => ({ ...p, mediaUrl: null, mediaType: null, publicId: null }));
+      return;
+    }
+    try {
+      await fetch(`/api/upload/${encodeURIComponent(editingClue.publicId)}`, { method: "DELETE" });
+    } catch (e) { console.error("Delete error:", e); }
+    setEditingClue((p) => ({ ...p, mediaUrl: null, mediaType: null, publicId: null }));
   };
 
   const diffStats = (clues) => {
@@ -403,7 +436,7 @@ export default function EditorScreen() {
 
             <div style={{ flex:1, overflowY:"auto", padding:"10px 12px" }}>
               {editingClue?.index !== "new" && (
-                <button onClick={() => setEditingClue({ index:"new", q:"", a:"", d:null })}
+                <button onClick={() => setEditingClue({ index:"new", q:"", a:"", d:null, mediaUrl:null, mediaType:null, publicId:null })}
                   style={{ width:"100%", padding:"14px", borderRadius:12, fontSize:15, fontWeight:700, border:"1px solid rgba(33,197,93,0.35)", background:"rgba(33,197,93,0.08)", color:"#21c55d", cursor:"pointer", marginBottom:10 }}>
                   + Add Clue
                 </button>
@@ -416,6 +449,25 @@ export default function EditorScreen() {
                     style={{ width:"100%", padding:"10px 12px", fontSize:15, borderRadius:10, border:"1px solid rgba(255,255,255,0.15)", background:"rgba(255,255,255,0.07)", color:"#f6f7ff", outline:"none", resize:"vertical", boxSizing:"border-box", marginBottom:8, fontFamily:"inherit" }} />
                   <input value={editingClue.a} onChange={(e) => setEditingClue((p) => ({ ...p, a: e.target.value }))} placeholder="Answer — e.g. What is the Super Bowl?"
                     style={{ width:"100%", padding:"10px 12px", fontSize:15, borderRadius:10, border:"1px solid rgba(255,221,117,0.25)", background:"rgba(255,221,117,0.06)", color:"#ffdd75", outline:"none", boxSizing:"border-box", marginBottom:12 }} />
+                  {/* Media upload */}
+                  <div style={{ marginBottom:12 }}>
+                    <div style={{ fontSize:13, fontWeight:700, color:"rgba(246,247,255,0.6)", marginBottom:8 }}>Image (optional)</div>
+                    {editingClue.mediaUrl ? (
+                      <div style={{ position:"relative", display:"inline-block" }}>
+                        <img src={editingClue.mediaUrl} alt="clue media" style={{ maxWidth:"100%", maxHeight:120, borderRadius:8, border:"1px solid rgba(255,255,255,0.12)", display:"block" }} />
+                        <button onClick={handleRemoveMedia} style={{ position:"absolute", top:4, right:4, background:"rgba(239,68,68,0.85)", border:"none", borderRadius:999, color:"#fff", fontWeight:900, fontSize:12, width:22, height:22, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", lineHeight:1 }}>✕</button>
+                      </div>
+                    ) : (
+                      <div>
+                        <input ref={fileInputRef} type="file" accept="image/*" style={{ display:"none" }} onChange={(e) => handleMediaUpload(e.target.files[0])} />
+                        <button onClick={() => fileInputRef.current?.click()} disabled={uploading}
+                          style={{ padding:"10px 16px", borderRadius:10, fontSize:13, fontWeight:700, border:"1px solid rgba(99,179,237,0.35)", background:"rgba(99,179,237,0.10)", color:"#90cdf4", cursor:"pointer" }}>
+                          {uploading ? "Uploading…" : "🖼️ Add Image"}
+                        </button>
+                        <div style={{ fontSize:11, color:"rgba(246,247,255,0.3)", marginTop:5 }}>Image will show full screen on the display. Host reads the clue question privately.</div>
+                      </div>
+                    )}
+                  </div>
                   <div style={{ fontSize:13, fontWeight:700, color:"rgba(246,247,255,0.6)", marginBottom:8 }}>Difficulty (optional)</div>
                   <div style={{ display:"flex", gap:8, marginBottom:14, flexWrap:"wrap" }}>
                     {["easy","medium","hard"].map((d) => (
@@ -423,8 +475,8 @@ export default function EditorScreen() {
                     ))}
                   </div>
                   <div style={{ display:"flex", gap:8 }}>
-                    <button onClick={handleSaveClue} disabled={!editingClue.q.trim() || !editingClue.a.trim()}
-                      style={{ flex:1, padding:"14px", borderRadius:10, fontSize:15, fontWeight:900, border:"none", background: editingClue.q.trim() && editingClue.a.trim() ? "#21c55d" : "rgba(255,255,255,0.08)", color: editingClue.q.trim() && editingClue.a.trim() ? "#fff" : "rgba(255,255,255,0.3)", cursor: editingClue.q.trim() && editingClue.a.trim() ? "pointer" : "not-allowed" }}>
+                    <button onClick={handleSaveClue} disabled={!editingClue.a.trim()}
+                      style={{ flex:1, padding:"14px", borderRadius:10, fontSize:15, fontWeight:900, border:"none", background: editingClue.a.trim() ? "#21c55d" : "rgba(255,255,255,0.08)", color: editingClue.a.trim() ? "#fff" : "rgba(255,255,255,0.3)", cursor: editingClue.a.trim() ? "pointer" : "not-allowed" }}>
                       Save Clue
                     </button>
                     <button onClick={() => setEditingClue(null)}
@@ -449,6 +501,24 @@ export default function EditorScreen() {
                         style={{ width:"100%", padding:"10px 12px", fontSize:15, borderRadius:10, border:"1px solid rgba(255,255,255,0.15)", background:"rgba(255,255,255,0.07)", color:"#f6f7ff", outline:"none", resize:"vertical", boxSizing:"border-box", marginBottom:8, fontFamily:"inherit" }} />
                       <input value={editingClue.a} onChange={(e) => setEditingClue((p) => ({ ...p, a: e.target.value }))}
                         style={{ width:"100%", padding:"10px 12px", fontSize:15, borderRadius:10, border:"1px solid rgba(255,221,117,0.25)", background:"rgba(255,221,117,0.06)", color:"#ffdd75", outline:"none", boxSizing:"border-box", marginBottom:12 }} />
+                      {/* Media upload */}
+                      <div style={{ marginBottom:12 }}>
+                        <div style={{ fontSize:13, fontWeight:700, color:"rgba(246,247,255,0.6)", marginBottom:8 }}>Image (optional)</div>
+                        {editingClue.mediaUrl ? (
+                          <div style={{ position:"relative", display:"inline-block" }}>
+                            <img src={editingClue.mediaUrl} alt="clue media" style={{ maxWidth:"100%", maxHeight:100, borderRadius:8, border:"1px solid rgba(255,255,255,0.12)", display:"block" }} />
+                            <button onClick={handleRemoveMedia} style={{ position:"absolute", top:4, right:4, background:"rgba(239,68,68,0.85)", border:"none", borderRadius:999, color:"#fff", fontWeight:900, fontSize:12, width:22, height:22, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}>✕</button>
+                          </div>
+                        ) : (
+                          <div>
+                            <input ref={fileInputRef} type="file" accept="image/*" style={{ display:"none" }} onChange={(e) => handleMediaUpload(e.target.files[0])} />
+                            <button onClick={() => fileInputRef.current?.click()} disabled={uploading}
+                              style={{ padding:"8px 14px", borderRadius:8, fontSize:12, fontWeight:700, border:"1px solid rgba(99,179,237,0.35)", background:"rgba(99,179,237,0.10)", color:"#90cdf4", cursor:"pointer" }}>
+                              {uploading ? "Uploading…" : "🖼️ Add Image"}
+                            </button>
+                          </div>
+                        )}
+                      </div>
                       <div style={{ fontSize:13, fontWeight:700, color:"rgba(246,247,255,0.6)", marginBottom:8 }}>Difficulty</div>
                       <div style={{ display:"flex", gap:8, marginBottom:14, flexWrap:"wrap" }}>
                         {["easy","medium","hard"].map((d) => (
@@ -456,8 +526,8 @@ export default function EditorScreen() {
                         ))}
                       </div>
                       <div style={{ display:"flex", gap:8 }}>
-                        <button onClick={handleSaveClue} disabled={!editingClue.q.trim() || !editingClue.a.trim()}
-                          style={{ flex:1, padding:"12px", borderRadius:10, fontSize:14, fontWeight:900, border:"none", background: editingClue.q.trim() && editingClue.a.trim() ? "#ffdd75" : "rgba(255,255,255,0.08)", color: editingClue.q.trim() && editingClue.a.trim() ? "#000" : "rgba(255,255,255,0.3)", cursor: editingClue.q.trim() && editingClue.a.trim() ? "pointer" : "not-allowed" }}>
+                        <button onClick={handleSaveClue} disabled={!editingClue.a.trim()}
+                          style={{ flex:1, padding:"12px", borderRadius:10, fontSize:14, fontWeight:900, border:"none", background: editingClue.a.trim() ? "#ffdd75" : "rgba(255,255,255,0.08)", color: editingClue.a.trim() ? "#000" : "rgba(255,255,255,0.3)", cursor: editingClue.a.trim() ? "pointer" : "not-allowed" }}>
                           Save
                         </button>
                         <button onClick={() => setEditingClue(null)}
@@ -467,7 +537,8 @@ export default function EditorScreen() {
                       </div>
                     </div>
                   ) : (
-                    <div style={{ padding:"12px 14px" }}>
+                    <div style={{ padding:"12px 14px", position:"relative" }}>
+                      {cl.mediaUrl && <span style={{ position:"absolute", top:10, right:10, fontSize:14 }} title="Has image">🖼️</span>}
                       <div style={{ fontSize:14, color:"#f6f7ff", lineHeight:1.45, marginBottom:4 }}>
                         <span style={{ fontSize:11, fontWeight:900, color:"rgba(246,247,255,0.25)", marginRight:8 }}>{i + 1}</span>
                         {cl.q}

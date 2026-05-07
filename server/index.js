@@ -6,8 +6,31 @@ const { Server } = require("socket.io");
 const { Pool }   = require("pg");
 const { QUESTION_BANK } = require("./data/questions");
 
+// ─── Cloudinary + Multer ──────────────────────────────────────────────────────
+const cloudinary = require("cloudinary").v2;
+const multer     = require("multer");
+const { CloudinaryStorage } = require("multer-storage-cloudinary");
+
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key:    process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
+});
+
+const storage = new CloudinaryStorage({
+  cloudinary,
+  params: {
+    folder:          "jaypardy-clues",
+    allowed_formats: ["jpg","jpeg","png","gif","webp","mp4","mp3","wav"],
+    resource_type:   "auto",
+  },
+});
+
+const upload = multer({ storage, limits: { fileSize: 100 * 1024 * 1024 } });
+
 const app = express();
 app.use(cors());
+app.use(express.json({ limit: "10mb" }));
 
 const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: "*" } });
@@ -899,6 +922,29 @@ io.on("connection", (socket) => {
 });
 
 // ─── Serve React client ───────────────────────────────────────────────────────
+// ─── Media upload endpoint ───────────────────────────────────────────────────
+app.post("/api/upload", upload.single("file"), (req, res) => {
+  if (!req.file) return res.status(400).json({ error: "No file uploaded" });
+  res.json({
+    url:          req.file.path,
+    public_id:    req.file.filename,
+    resource_type: req.file.mimetype?.startsWith("video") ? "video"
+                 : req.file.mimetype?.startsWith("audio") ? "audio"
+                 : "image",
+  });
+});
+
+// ─── Media delete endpoint ────────────────────────────────────────────────────
+app.delete("/api/upload/:publicId", async (req, res) => {
+  try {
+    const id = decodeURIComponent(req.params.publicId);
+    await cloudinary.uploader.destroy(id, { resource_type: "auto" });
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 const clientBuild = path.join(__dirname, "../client/dist");
 app.use(express.static(clientBuild));
 app.get("/{*path}", (req, res) => res.sendFile(path.join(clientBuild, "index.html")));
