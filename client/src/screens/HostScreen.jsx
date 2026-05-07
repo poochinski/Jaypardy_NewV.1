@@ -215,7 +215,8 @@ export default function HostScreen({ state }) {
     // ── Category introductions ────────────────────────────────────────────
     if (phase === "introducing" && board) {
       const totalCats = board.columns.length;
-      const allRevealed = introIndex >= totalCats - 1;
+      // allRevealed only after all have been shown (index goes past the last)
+      const allRevealed = introIndex >= totalCats;
       const nextCat = introIndex < totalCats - 1 ? board.columns[introIndex + 1] : null;
 
       // Host sees the FULL board — all categories visible so they can review/swap

@@ -428,8 +428,10 @@ export default function DisplayScreen({ state }) {
   // ─── Introducing categories ──────────────────────────────────────────────
   if (phase === "introducing" && board) {
     const totalCats = board.columns.length;
-    const allRevealed = introIndex >= totalCats - 1;
-    const currentCat = introIndex >= 0 ? board.columns[introIndex] : null;
+    // allRevealed = true only AFTER all 6 have been shown (index goes past the last)
+    // When index === totalCats-1 we still show the last category full screen
+    const allRevealed = introIndex >= totalCats;
+    const currentCat = introIndex >= 0 && introIndex < totalCats ? board.columns[introIndex] : null;
 
     // Before any category is revealed — show a "get ready" screen
     if (introIndex < 0) {

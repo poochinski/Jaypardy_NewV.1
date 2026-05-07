@@ -564,7 +564,7 @@ io.on("connection", (socket) => {
   socket.on("host:newBoard", async () => {
     const board = await buildBoard(state.board?.round ?? 1);
     if (!board) return;
-    state = { ...state, board, phase: "board", currentClue: null, buzz: freshBuzz() };
+    state = { ...state, board, phase: "introducing", currentClue: null, buzz: freshBuzz(), introIndex: -1 };
     emitState();
   });
 
@@ -808,7 +808,7 @@ io.on("connection", (socket) => {
     const columns = categories.map((catName, ci) => {
       const cat    = categoryCache.find((c) => c.category === catName) ?? categoryCache[ci % categoryCache.length];
       const chosen = pickRandom(cat.clues, 5);
-      return { id:`c${ci}`, title:cat.category, clues: chosen.map((cl, ri) => ({ id:`c${ci}r${ri}`, value:values[ri], question:cl.q, answer:cl.a, used:false, isDD:false })) };
+      return { id:`c${ci}`, title:cat.category, hint: cat.hint || "", clues: chosen.map((cl, ri) => ({ id:`c${ci}r${ri}`, value:values[ri], question:cl.q, answer:cl.a, used:false, isDD:false })) };
     });
     const placed = new Set(); let att = 0;
     while (placed.size < ddCount && att < 50) {
@@ -816,7 +816,7 @@ io.on("connection", (socket) => {
       const col = Math.floor(Math.random() * 6), row = 1 + Math.floor(Math.random() * 4), key = `${col}-${row}`;
       if (!placed.has(key)) { columns[col].clues[row].isDD = true; placed.add(key); }
     }
-    state = { ...state, board: { round, columns }, phase: "board", currentClue: null, wager: null, buzz: freshBuzz() };
+    state = { ...state, board: { round, columns }, phase: "introducing", currentClue: null, wager: null, buzz: freshBuzz(), introIndex: -1 };
     emitState();
   });
 
