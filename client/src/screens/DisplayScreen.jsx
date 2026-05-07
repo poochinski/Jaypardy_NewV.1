@@ -291,7 +291,7 @@ export default function DisplayScreen({ state }) {
   if ((phase === "clue" || phase === "dailyDoubleClue") && clue) {
     const buzzer      = buzz?.locked ? buzz : null;
     const buzzerTeam  = buzzer ? teamById[buzzer.teamId] : null;
-    const isMediaClue = !!clue.mediaUrl && clue.mediaType === "image";
+    const isMediaClue = !!clue.mediaUrl;
 
     return (
       <div className="jp-root" style={{ minHeight: "100vh", display: "flex", flexDirection: "column" }}>

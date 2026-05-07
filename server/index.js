@@ -937,6 +937,7 @@ io.on("connection", (socket) => {
 // ─── Media upload endpoint ───────────────────────────────────────────────────
 app.post("/api/upload", upload.single("file"), (req, res) => {
   if (!req.file) return res.status(400).json({ error: "No file uploaded" });
+  console.log("[upload] file received:", { path: req.file.path, filename: req.file.filename, mimetype: req.file.mimetype });
   res.json({
     url:          req.file.path,
     public_id:    req.file.filename,
