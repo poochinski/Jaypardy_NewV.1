@@ -194,9 +194,8 @@ html, body {
 /* Each column */
 .jp-col{
   display: grid;
-  grid-template-rows: 72px repeat(5, 1fr);
+  grid-template-rows: 72px repeat(5, 84px);
   gap: 2px;
-  height: 100%;
 }
 
 .jp-cat{
