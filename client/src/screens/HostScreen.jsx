@@ -416,7 +416,7 @@ export default function HostScreen({ state }) {
 
     if (isClueActive && clue) {
       const isMediaClue = !!clue.mediaUrl;
-      console.log("[clue debug]", { mediaUrl: clue.mediaUrl, mediaType: clue.mediaType });
+      
       return (
         <div style={{ flex:1, display:"flex", flexDirection:"column", padding:"20px 28px", gap:14 }}>
           <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:10, flexShrink:0 }}>
