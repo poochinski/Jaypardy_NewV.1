@@ -436,10 +436,20 @@ export default function HostScreen({ state }) {
                   <img src={clue.mediaUrl} alt="clue" style={{ maxWidth:180, maxHeight:130, borderRadius:10, border:"1px solid rgba(255,255,255,0.12)", objectFit:"contain" }} />
                 )}
                 {clue.mediaType === "video" && (
-                  <button onClick={() => socket.emit("host:playVideo")}
-                    style={{ padding:"8px 18px", borderRadius:10, border:"none", background:"#ffdd75", color:"#000", fontWeight:900, fontSize:13, cursor:"pointer", display:"flex", alignItems:"center", gap:6 }}>
-                    ▶ Play Video
-                  </button>
+                  <div style={{ display:"flex", gap:6 }}>
+                    <button onClick={() => socket.emit("host:playVideo")}
+                      style={{ padding:"8px 14px", borderRadius:10, border:"none", background:"#ffdd75", color:"#000", fontWeight:900, fontSize:13, cursor:"pointer" }}>
+                      ▶ Play
+                    </button>
+                    <button onClick={() => socket.emit("host:pauseVideo")}
+                      style={{ padding:"8px 14px", borderRadius:10, border:"1px solid rgba(255,255,255,0.2)", background:"rgba(255,255,255,0.08)", color:"#f6f7ff", fontWeight:900, fontSize:13, cursor:"pointer" }}>
+                      ⏸ Pause
+                    </button>
+                    <button onClick={() => socket.emit("host:replayVideo")}
+                      style={{ padding:"8px 14px", borderRadius:10, border:"1px solid rgba(255,255,255,0.2)", background:"rgba(255,255,255,0.08)", color:"#f6f7ff", fontWeight:900, fontSize:13, cursor:"pointer" }}>
+                      ↩ Replay
+                    </button>
+                  </div>
                 )}
               </div>
               {/* Private question text */}

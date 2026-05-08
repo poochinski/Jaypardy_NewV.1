@@ -106,8 +106,24 @@ export default function DisplayScreen({ state }) {
         videoRef.current.play();
       }
     };
-    socket.on("video:play", onPlay);
-    return () => socket.off("video:play", onPlay);
+    const onPause = () => {
+      if (videoRef.current) videoRef.current.pause();
+    };
+    const onReplay = () => {
+      setVideoPlaying(true);
+      if (videoRef.current) {
+        videoRef.current.currentTime = 0;
+        videoRef.current.play();
+      }
+    };
+    socket.on("video:play",   onPlay);
+    socket.on("video:pause",  onPause);
+    socket.on("video:replay", onReplay);
+    return () => {
+      socket.off("video:play",   onPlay);
+      socket.off("video:pause",  onPause);
+      socket.off("video:replay", onReplay);
+    };
   }, []);
 
   // Reset video state when clue changes
@@ -479,7 +495,7 @@ export default function DisplayScreen({ state }) {
                     className={`jp-cell${c.used ? " jp-cell-used" : ""}`}
                     style={{ cursor:"default" }}>
                     {!c.used && `$${c.value}`}
-                    {!c.used && c.mediaUrl && <span style={{ position:"absolute", bottom:6, right:8, fontSize:11, opacity:0.6 }}>{c.mediaType === "video" ? "🎬" : "🖼️"}</span>}
+                    
                   </div>
                 ))}
               </div>
