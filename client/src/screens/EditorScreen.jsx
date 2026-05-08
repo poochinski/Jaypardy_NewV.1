@@ -465,10 +465,10 @@ export default function EditorScreen() {
                       </div>
                     ) : (
                       <div>
-                        <input ref={fileInputRef} type="file" accept="image/*,video/*" style={{ display:"none" }} onChange={(e) => handleMediaUpload(e.target.files[0])} />
+                        <input ref={fileInputRef} type="file" accept="image/*,video/*,audio/*" style={{ display:"none" }} onChange={(e) => handleMediaUpload(e.target.files[0])} />
                         <button onClick={() => fileInputRef.current?.click()} disabled={uploading}
                           style={{ padding:"10px 16px", borderRadius:10, fontSize:13, fontWeight:700, border:"1px solid rgba(99,179,237,0.35)", background:"rgba(99,179,237,0.10)", color:"#90cdf4", cursor:"pointer" }}>
-                          {uploading ? "Uploading…" : "🖼️ Add Image / Video"}
+                          {uploading ? "Uploading…" : "🖼️ Add Image / Video / Audio"}
                         </button>
                         <div style={{ fontSize:11, color:"rgba(246,247,255,0.3)", marginTop:5 }}>Image will show full screen on the display. Host reads the clue question privately.</div>
                       </div>
@@ -520,10 +520,10 @@ export default function EditorScreen() {
                           </div>
                         ) : (
                           <div>
-                            <input ref={fileInputRef} type="file" accept="image/*,video/*" style={{ display:"none" }} onChange={(e) => handleMediaUpload(e.target.files[0])} />
+                            <input ref={fileInputRef} type="file" accept="image/*,video/*,audio/*" style={{ display:"none" }} onChange={(e) => handleMediaUpload(e.target.files[0])} />
                             <button onClick={() => fileInputRef.current?.click()} disabled={uploading}
                               style={{ padding:"8px 14px", borderRadius:8, fontSize:12, fontWeight:700, border:"1px solid rgba(99,179,237,0.35)", background:"rgba(99,179,237,0.10)", color:"#90cdf4", cursor:"pointer" }}>
-                              {uploading ? "Uploading…" : "🖼️ Add Image / Video"}
+                              {uploading ? "Uploading…" : "🖼️ Add Image / Video / Audio"}
                             </button>
                           </div>
                         )}
@@ -547,7 +547,7 @@ export default function EditorScreen() {
                     </div>
                   ) : (
                     <div style={{ padding:"12px 14px", position:"relative" }}>
-                      {cl.mediaUrl && <span style={{ position:"absolute", top:10, right:10, fontSize:14 }} title={cl.mediaType === "video" ? "Has video" : "Has image"}>{cl.mediaType === "video" ? "🎬" : "🖼️"}</span>}
+                      {cl.mediaUrl && <span style={{ position:"absolute", top:10, right:10, fontSize:14 }} title={cl.mediaType === "video" ? "Has video" : "Has image"}>{cl.mediaType === "video" ? "🎬" : cl.mediaType === "audio" ? "🎵" : "🖼️"}</span>}
                       <div style={{ fontSize:14, color:"#f6f7ff", lineHeight:1.45, marginBottom:4 }}>
                         <span style={{ fontSize:11, fontWeight:900, color:"rgba(246,247,255,0.25)", marginRight:8 }}>{i + 1}</span>
                         {cl.q}

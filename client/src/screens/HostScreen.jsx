@@ -423,7 +423,7 @@ export default function HostScreen({ state }) {
             <div style={{ padding:"5px 16px", borderRadius:999, background:"rgba(255,221,117,0.18)", border:"1px solid rgba(255,221,117,0.45)", fontSize:14, fontWeight:900, color:"#ffdd75" }}>
               {phase === "dailyDoubleClue" ? `Daily Double — $${state?.wager?.amount?.toLocaleString() ?? "?"}` : `$${clue.value}`}
             </div>
-            {isMediaClue && <div style={{ padding:"4px 10px", borderRadius:999, background:"rgba(99,179,237,0.15)", border:"1px solid rgba(99,179,237,0.35)", fontSize:11, fontWeight:700, color:"#90cdf4" }}>{clue.mediaType === "video" ? "🎬 Video Clue" : "🖼️ Image Clue"}</div>}
+            {isMediaClue && <div style={{ padding:"4px 10px", borderRadius:999, background:"rgba(99,179,237,0.15)", border:"1px solid rgba(99,179,237,0.35)", fontSize:11, fontWeight:700, color:"#90cdf4" }}>{clue.mediaType === "video" ? "🎬 Video Clue" : clue.mediaType === "audio" ? "🎵 Audio Clue" : "🖼️ Image Clue"}</div>}
           </div>
 
           {isMediaClue ? (
@@ -432,6 +432,8 @@ export default function HostScreen({ state }) {
               <div style={{ flexShrink:0, display:"flex", flexDirection:"column", alignItems:"center", gap:8, justifyContent:"center" }}>
                 {clue.mediaType === "video" ? (
                   <video src={clue.mediaUrl} style={{ maxWidth:180, maxHeight:130, borderRadius:10, border:"1px solid rgba(255,255,255,0.12)" }} />
+                ) : clue.mediaType === "audio" ? (
+                  <div style={{ width:180, height:80, borderRadius:10, border:"1px solid rgba(255,255,255,0.12)", background:"rgba(255,255,255,0.04)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:36 }}>🎵</div>
                 ) : (
                   <img src={clue.mediaUrl} alt="clue" style={{ maxWidth:180, maxHeight:130, borderRadius:10, border:"1px solid rgba(255,255,255,0.12)", objectFit:"contain" }} />
                 )}
@@ -451,11 +453,27 @@ export default function HostScreen({ state }) {
                     </button>
                   </div>
                 )}
+                {clue.mediaType === "audio" && (
+                  <div style={{ display:"flex", gap:6 }}>
+                    <button onClick={() => socket.emit("host:playAudio")}
+                      style={{ padding:"8px 14px", borderRadius:10, border:"none", background:"#ffdd75", color:"#000", fontWeight:900, fontSize:13, cursor:"pointer" }}>
+                      ▶ Play
+                    </button>
+                    <button onClick={() => socket.emit("host:pauseAudio")}
+                      style={{ padding:"8px 14px", borderRadius:10, border:"1px solid rgba(255,255,255,0.2)", background:"rgba(255,255,255,0.08)", color:"#f6f7ff", fontWeight:900, fontSize:13, cursor:"pointer" }}>
+                      ⏸ Pause
+                    </button>
+                    <button onClick={() => socket.emit("host:replayAudio")}
+                      style={{ padding:"8px 14px", borderRadius:10, border:"1px solid rgba(255,255,255,0.2)", background:"rgba(255,255,255,0.08)", color:"#f6f7ff", fontWeight:900, fontSize:13, cursor:"pointer" }}>
+                      ↩ Replay
+                    </button>
+                  </div>
+                )}
               </div>
               {/* Private question text */}
               <div style={{ flex:1, display:"flex", flexDirection:"column", justifyContent:"center", gap:8 }}>
                 <div style={{ fontSize:11, fontWeight:700, color:"rgba(99,179,237,0.6)", textTransform:"uppercase", letterSpacing:0.5 }}>Your private clue text</div>
-                <div style={{ fontSize:16, fontWeight:700, color:"#fff", lineHeight:1.4 }}>{clue.question || <span style={{ opacity:0.35, fontStyle:"italic" }}>No clue text — read from {clue.mediaType === "video" ? "video":"image"}</span>}</div>
+                <div style={{ fontSize:16, fontWeight:700, color:"#fff", lineHeight:1.4 }}>{clue.question || <span style={{ opacity:0.35, fontStyle:"italic" }}>No clue text — read from {clue.mediaType === "video" ? "video" : clue.mediaType === "audio" ? "audio" : "image"}</span>}</div>
               </div>
             </div>
           ) : (
@@ -540,7 +558,7 @@ export default function HostScreen({ state }) {
                       style={{ opacity: c.used ? 0.3 : 1, cursor: c.used ? "not-allowed" : pickingDD && !isEligibleDD ? "not-allowed" : "pointer", outline: c.isDD ? "3px solid rgba(255,215,79,0.9)" : isEligibleDD ? "2px dashed rgba(255,215,79,0.6)" : "none" }}>
                       ${c.value}
                       {c.isDD && <span className="jp-dd">DD</span>}
-                      {c.mediaUrl && <span style={{ position:"absolute", bottom:6, left:8, fontSize:11 }}>{c.mediaType === "video" ? "🎬" : "🖼️"}</span>}
+                      {c.mediaUrl && <span style={{ position:"absolute", bottom:6, left:8, fontSize:11 }}>{c.mediaType === "video" ? "🎬" : c.mediaType === "audio" ? "🎵" : "🖼️"}</span>}
                     </button>
                   );
                 })}

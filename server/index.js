@@ -694,6 +694,23 @@ io.on("connection", (socket) => {
     io.emit("video:replay");
   });
 
+  socket.on("host:playAudio", () => {
+    if (state.phase !== "clue" && state.phase !== "dailyDoubleClue") return;
+    if (!state.currentClue?.mediaUrl) return;
+    io.emit("audio:play");
+  });
+
+  socket.on("host:pauseAudio", () => {
+    if (state.phase !== "clue" && state.phase !== "dailyDoubleClue") return;
+    io.emit("audio:pause");
+  });
+
+  socket.on("host:replayAudio", () => {
+    if (state.phase !== "clue" && state.phase !== "dailyDoubleClue") return;
+    if (!state.currentClue?.mediaUrl) return;
+    io.emit("audio:replay");
+  });
+
   // ─── Puzzle buzzer ────────────────────────────────────────────────────────
   socket.on("host:launchPuzzle", () => {
     if (state.phase !== "clue" && state.phase !== "dailyDoubleClue") return;

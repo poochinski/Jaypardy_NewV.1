@@ -20,7 +20,9 @@ export default function DisplayScreen({ state }) {
   const [isFullscreen,  setIsFullscreen]  = useState(false);
   const [flashTeams,    setFlashTeams]    = useState({});
   const [videoPlaying,  setVideoPlaying]  = useState(false);
+  const [audioPlaying,  setAudioPlaying]  = useState(false);
   const videoRef        = useRef(null);
+  const audioRef        = useRef(null);
   const prevPhaseRef    = useRef(null);
   const prevBuzzRef     = useRef(null);
   const revealTimer     = useRef(null);
@@ -116,19 +118,43 @@ export default function DisplayScreen({ state }) {
         videoRef.current.play();
       }
     };
+    const onAudioPlay = () => {
+      setAudioPlaying(true);
+      if (audioRef.current) {
+        audioRef.current.currentTime = 0;
+        audioRef.current.play();
+      }
+    };
+    const onAudioPause = () => {
+      if (audioRef.current) audioRef.current.pause();
+    };
+    const onAudioReplay = () => {
+      setAudioPlaying(true);
+      if (audioRef.current) {
+        audioRef.current.currentTime = 0;
+        audioRef.current.play();
+      }
+    };
     socket.on("video:play",   onPlay);
     socket.on("video:pause",  onPause);
     socket.on("video:replay", onReplay);
+    socket.on("audio:play",   onAudioPlay);
+    socket.on("audio:pause",  onAudioPause);
+    socket.on("audio:replay", onAudioReplay);
     return () => {
       socket.off("video:play",   onPlay);
       socket.off("video:pause",  onPause);
       socket.off("video:replay", onReplay);
+      socket.off("audio:play",   onAudioPlay);
+      socket.off("audio:pause",  onAudioPause);
+      socket.off("audio:replay", onAudioReplay);
     };
   }, []);
 
-  // Reset video state when clue changes
+  // Reset video/audio state when clue changes
   useEffect(() => {
     setVideoPlaying(false);
+    setAudioPlaying(false);
   }, [clue?.clueId]);
 
   useEffect(() => {
@@ -432,6 +458,16 @@ export default function DisplayScreen({ state }) {
                     <div style={{ fontSize:"clamp(16px,2.5vw,24px)", fontWeight:700, color:"rgba(246,247,255,0.5)" }}>Waiting for host to play…</div>
                   </div>
                 )
+              ) : clue.mediaType === "audio" ? (
+                <div style={{ display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:24 }}>
+                  <audio ref={audioRef} src={clue.mediaUrl} onEnded={() => setAudioPlaying(false)} />
+                  <div style={{ fontSize:"clamp(80px,14vw,140px)", lineHeight:1 }}>
+                    {audioPlaying ? "🔊" : "🎵"}
+                  </div>
+                  <div style={{ fontSize:"clamp(16px,2.5vw,24px)", fontWeight:700, color:"rgba(246,247,255,0.5)" }}>
+                    {audioPlaying ? "Playing…" : "Waiting for host to play…"}
+                  </div>
+                </div>
               ) : (
                 <img src={clue.mediaUrl} alt="clue"
                   style={{ maxWidth:"100%", maxHeight:"clamp(280px,52vh,560px)", borderRadius:16, boxShadow:"0 8px 40px rgba(0,0,0,0.5)", objectFit:"contain" }} />
