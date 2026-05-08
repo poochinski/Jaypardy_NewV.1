@@ -431,18 +431,21 @@ export default function PlayerScreen({ state }) {
         <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "20px 20px 32px" }}>
           <button
             onClick={doBuzz}
+            className={buzzState === "ready" ? "jp-buzz-ready" : ""}
             style={{
               width: "100%", flex: 1, maxHeight: 320,
               fontSize: buzzState === "won" || buzzState === "lost" ? 32 : 56,
               fontWeight: 900, borderRadius: 28, letterSpacing: 2,
               border: `3px solid ${bc.border}`,
-              background: bc.bg,
+              background: buzzState === "ready"
+                ? "linear-gradient(180deg, #1e4ae0 0%, #1232b0 100%)"
+                : bc.bg,
               color: bc.text,
               cursor: buzzState === "ready" ? "pointer" : "not-allowed",
               transition: "background 0.1s ease, transform 0.08s ease",
               transform: buzzFlash ? "scale(0.97)" : "scale(1)",
               boxShadow: buzzState === "ready"
-                ? "0 0 40px rgba(26,59,209,0.4), inset 0 1px 0 rgba(255,255,255,0.1)"
+                ? "0 4px 40px rgba(26,59,209,0.45), inset 0 1px 0 rgba(255,255,255,0.12)"
                 : buzzState === "won"
                 ? "0 0 40px rgba(21,128,61,0.5)"
                 : "none",
@@ -643,17 +646,23 @@ export default function PlayerScreen({ state }) {
       const myRank = sorted.findIndex((t) => t.id === me?.teamId);
       return (
         <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 16, padding: "20px", textAlign: "center" }}>
-          <div style={{ fontSize: 40, fontWeight: 900, color: "#ffdd75" }}>GAME OVER</div>
-          {myRank === 0 && <div style={{ fontSize: 48 }}>🏆</div>}
+          <div style={{ fontSize:44, fontWeight:900, color:"#ffdd75", letterSpacing:-1, textShadow:"0 3px 0 rgba(0,0,0,0.3)" }}>GAME OVER</div>
+          {myRank === 0 && <div style={{ fontSize:56, lineHeight:1 }}>🏆</div>}
           {myTeam && (
-            <div style={{ padding: "16px 24px", borderRadius: 14, background: `${myTeam.color}18`, border: `2px solid ${myTeam.color}55` }}>
-              <div style={{ fontSize: 14, color: "rgba(246,247,255,0.5)", marginBottom: 4 }}>
-                {myRank === 0 ? "Winner!" : `${myRank + 1}${myRank === 1 ? "nd" : myRank === 2 ? "rd" : "th"} place`}
+            <div style={{ padding:"18px 28px", borderRadius:16, background:`${myTeam.color}18`, border:`2px solid ${myTeam.color}66`, textAlign:"center", minWidth:200 }}>
+              <div style={{ fontSize:13, color:"rgba(246,247,255,0.5)", marginBottom:6, fontWeight:700, textTransform:"uppercase", letterSpacing:1 }}>
+                {myRank === 0 ? "🎉 Winner!" : `${myRank+1}${myRank===1?"nd":myRank===2?"rd":"th"} Place`}
               </div>
-              <div style={{ fontSize: 28, fontWeight: 900, color: myTeam.color }}>${myTeam.score.toLocaleString()}</div>
+              <div style={{ fontSize:32, fontWeight:900, color:myTeam.color }}>${myTeam.score.toLocaleString()}</div>
             </div>
           )}
-          <div style={{ fontSize: 14, color: "rgba(246,247,255,0.4)", marginTop: 8 }}>Thanks for playing!</div>
+          {sorted.map((t, i) => i === myRank ? null : (
+            <div key={t.id} style={{ display:"flex", alignItems:"center", gap:10, padding:"8px 16px", borderRadius:10, background:"rgba(255,255,255,0.04)", border:"1px solid rgba(255,255,255,0.07)", width:"100%", maxWidth:280 }}>
+              <span style={{ fontSize:13, color:"rgba(246,247,255,0.4)", fontWeight:700, width:24 }}>{i+1}.</span>
+              <span style={{ flex:1, fontSize:13, color:"rgba(246,247,255,0.6)" }}>{players.filter((p)=>p.teamId===t.id).map((p)=>p.name).join(", ")}</span>
+              <span style={{ fontSize:13, fontWeight:900, color:t.color }}>${t.score.toLocaleString()}</span>
+            </div>
+          ))}
         </div>
       );
     }

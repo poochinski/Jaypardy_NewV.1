@@ -4,81 +4,67 @@ import { playDDChime, playCorrect, playWrong } from "../sounds";
 import { socket } from "../socket";
 
 export default function DisplayScreen({ state }) {
-  const phase      = state?.phase;
-  const board      = state?.board;
-  const clue       = state?.currentClue;
-  const buzz       = state?.buzz;
-  const teams      = state?.teams ?? [];
-  const players    = state?.players ?? [];
+  const phase        = state?.phase;
+  const board        = state?.board;
+  const clue         = state?.currentClue;
+  const buzz         = state?.buzz;
+  const teams        = state?.teams ?? [];
+  const players      = state?.players ?? [];
   const paused       = state?.paused ?? false;
   const pauseMessage = state?.pauseMessage ?? "";
   const introIndex   = state?.introIndex ?? -1;
 
-  const [revealAnswer, setRevealAnswer] = useState(null);
-  const [wrongFlash,   setWrongFlash]   = useState(null);
-  const [muted,        setMuted]        = useState(false);
-  const [isFullscreen, setIsFullscreen] = useState(false); // ── NEW
-  const prevPhaseRef   = useRef(null);
-  const prevBuzzRef    = useRef(null);
-  const revealTimer    = useRef(null);
-  const wrongTimer     = useRef(null);
-  const ddChimeFired   = useRef(false);
-  const mutedRef       = useRef(false);
+  const [revealAnswer,  setRevealAnswer]  = useState(null);
+  const [wrongFlash,    setWrongFlash]    = useState(null);
+  const [muted,         setMuted]         = useState(false);
+  const [isFullscreen,  setIsFullscreen]  = useState(false);
+  const [flashTeams,    setFlashTeams]    = useState({});
+  const prevPhaseRef    = useRef(null);
+  const prevBuzzRef     = useRef(null);
+  const revealTimer     = useRef(null);
+  const wrongTimer      = useRef(null);
+  const ddChimeFired    = useRef(false);
+  const mutedRef        = useRef(false);
   const correctFiredRef = useRef(false);
+  const prevScoresRef   = useRef({});
 
   useEffect(() => { mutedRef.current = muted; }, [muted]);
 
-  // ── Fullscreen API ────────────────────────────────────────────────────────
   const toggleFullscreen = () => {
     if (!document.fullscreenElement) {
-      document.documentElement.requestFullscreen?.()
-        ?? document.documentElement.webkitRequestFullscreen?.()
-        ?? document.documentElement.mozRequestFullScreen?.()
-        ?? document.documentElement.msRequestFullscreen?.();
+      (document.documentElement.requestFullscreen
+        ?? document.documentElement.webkitRequestFullscreen
+        ?? document.documentElement.mozRequestFullScreen
+        ?? document.documentElement.msRequestFullscreen
+      )?.call(document.documentElement);
     } else {
-      document.exitFullscreen?.()
-        ?? document.webkitExitFullscreen?.()
-        ?? document.mozCancelFullScreen?.()
-        ?? document.msExitFullscreen?.();
+      (document.exitFullscreen
+        ?? document.webkitExitFullscreen
+        ?? document.mozCancelFullScreen
+        ?? document.msExitFullscreen
+      )?.call(document);
     }
   };
 
-  // Track actual fullscreen state from browser events
   useEffect(() => {
-    const onFsChange = () => {
-      setIsFullscreen(
-        !!(document.fullscreenElement
-          || document.webkitFullscreenElement
-          || document.mozFullScreenElement
-          || document.msFullscreenElement)
-      );
-    };
-    document.addEventListener("fullscreenchange",       onFsChange);
-    document.addEventListener("webkitfullscreenchange", onFsChange);
-    document.addEventListener("mozfullscreenchange",    onFsChange);
-    document.addEventListener("MSFullscreenChange",     onFsChange);
-    return () => {
-      document.removeEventListener("fullscreenchange",       onFsChange);
-      document.removeEventListener("webkitfullscreenchange", onFsChange);
-      document.removeEventListener("mozfullscreenchange",    onFsChange);
-      document.removeEventListener("MSFullscreenChange",     onFsChange);
-    };
+    const onFsChange = () => setIsFullscreen(!!(
+      document.fullscreenElement || document.webkitFullscreenElement ||
+      document.mozFullScreenElement || document.msFullscreenElement
+    ));
+    ["fullscreenchange","webkitfullscreenchange","mozfullscreenchange","MSFullscreenChange"]
+      .forEach((e) => document.addEventListener(e, onFsChange));
+    return () => ["fullscreenchange","webkitfullscreenchange","mozfullscreenchange","MSFullscreenChange"]
+      .forEach((e) => document.removeEventListener(e, onFsChange));
   }, []);
 
-  const visibleTeams = teams.filter((t) =>
-    players.some((p) => p.teamId === t.id)
-  );
-
-  const teamById = Object.fromEntries(teams.map((t) => [t.id, t]));
+  const visibleTeams = teams.filter((t) => players.some((p) => p.teamId === t.id));
+  const teamById     = Object.fromEntries(teams.map((t) => [t.id, t]));
 
   useEffect(() => {
     if (phase === "dailyDouble" && !ddChimeFired.current && !mutedRef.current) {
-      ddChimeFired.current = true;
-      playDDChime();
+      ddChimeFired.current = true; playDDChime();
     }
-    if (phase !== "dailyDouble") {
-      ddChimeFired.current = false;
-    }
+    if (phase !== "dailyDouble") ddChimeFired.current = false;
   }, [phase]);
 
   useEffect(() => {
@@ -86,21 +72,14 @@ export default function DisplayScreen({ state }) {
     const prevBuzz  = prevBuzzRef.current;
     if (
       (prevPhase === "clue" || prevPhase === "dailyDoubleClue") &&
-      phase === "board" &&
-      prevBuzz?.locked &&
-      prevBuzz?.teamId &&
+      phase === "board" && prevBuzz?.locked && prevBuzz?.teamId &&
       correctFiredRef.current
     ) {
       correctFiredRef.current = false;
       const team = teamById[prevBuzz.teamId];
-      setRevealAnswer({
-        teamName: team?.name ?? "",
-        color:    team?.color ?? "#21c55d",
-        name:     prevBuzz.name,
-        emoji:    prevBuzz.emoji,
-      });
+      setRevealAnswer({ color: team?.color ?? "#21c55d", name: prevBuzz.name, emoji: prevBuzz.emoji });
       clearTimeout(revealTimer.current);
-      revealTimer.current = setTimeout(() => setRevealAnswer(null), 2500);
+      revealTimer.current = setTimeout(() => setRevealAnswer(null), 2800);
     } else {
       correctFiredRef.current = false;
     }
@@ -110,13 +89,8 @@ export default function DisplayScreen({ state }) {
 
   useEffect(() => {
     const onCue = (cue) => {
-      if (cue === "correct") {
-        correctFiredRef.current = true;
-        if (!mutedRef.current) playCorrect();
-      }
-      if (cue === "wrong") {
-        if (!mutedRef.current) playWrong();
-      }
+      if (cue === "correct") { correctFiredRef.current = true; if (!mutedRef.current) playCorrect(); }
+      if (cue === "wrong"  ) { if (!mutedRef.current) playWrong(); }
     };
     socket.on("sound:cue", onCue);
     return () => socket.off("sound:cue", onCue);
@@ -126,131 +100,68 @@ export default function DisplayScreen({ state }) {
     const prevBuzz = prevBuzzRef.current;
     if (
       (phase === "clue" || phase === "dailyDoubleClue") &&
-      prevBuzz?.locked &&
-      !buzz?.locked &&
-      prevBuzz?.playerId
+      prevBuzz?.locked && !buzz?.locked && prevBuzz?.playerId
     ) {
       const team = teamById[prevBuzz.teamId];
-      setWrongFlash({
-        name:  prevBuzz.name,
-        emoji: prevBuzz.emoji,
-        color: team?.color ?? "#ef4444",
-      });
+      setWrongFlash({ name: prevBuzz.name, emoji: prevBuzz.emoji, color: team?.color ?? "#ef4444" });
       clearTimeout(wrongTimer.current);
-      wrongTimer.current = setTimeout(() => setWrongFlash(null), 1500);
+      wrongTimer.current = setTimeout(() => setWrongFlash(null), 1600);
     }
   }, [buzz?.locked]);
 
-  useEffect(() => () => {
-    clearTimeout(revealTimer.current);
-    clearTimeout(wrongTimer.current);
-  }, []);
-
-  // ─── Score flash tracking ─────────────────────────────────────────────────
-  const [flashTeams, setFlashTeams] = useState({});
-  const prevScoresRef = useRef({});
+  useEffect(() => () => { clearTimeout(revealTimer.current); clearTimeout(wrongTimer.current); }, []);
 
   useEffect(() => {
     const newFlashes = {};
     teams.forEach((t) => {
       const prev = prevScoresRef.current[t.id];
-      if (prev !== undefined && prev !== t.score) {
-        newFlashes[t.id] = t.score > prev ? "positive" : "negative";
-      }
+      if (prev !== undefined && prev !== t.score)
+        newFlashes[t.id] = t.score > prev ? "pos" : "neg";
       prevScoresRef.current[t.id] = t.score;
     });
-    if (Object.keys(newFlashes).length > 0) {
+    if (Object.keys(newFlashes).length) {
       setFlashTeams(newFlashes);
       setTimeout(() => setFlashTeams({}), 700);
     }
   }, [teams]);
 
-  // ─── Score strip ──────────────────────────────────────────────────────────
+  // ─── Shared score strip ───────────────────────────────────────────────────
   const ScoreStrip = () => (
-    <div style={{ position: "relative" }}>
-      <div style={{
-        display: "flex", gap: 10, padding: "10px 16px",
-        borderBottom: "1px solid rgba(255,255,255,0.08)",
-        background: "rgba(0,0,0,0.18)", flexWrap: "wrap",
-        justifyContent: "center", alignItems: "center", position: "relative",
-      }}>
-        {visibleTeams.length === 0 ? (
-          <div style={{ color: "rgba(246,247,255,0.4)", fontSize: 14 }}>No teams yet</div>
-        ) : (
-          visibleTeams.map((t) => {
-            const teamPlayers = players.filter((p) => p.teamId === t.id);
-            const names       = teamPlayers.map((p) => p.name).join(", ");
-            const flash       = flashTeams[t.id];
-            return (
-              <div key={t.id} style={{
-                display: "flex", alignItems: "center", gap: 10,
-                padding: "8px 16px", borderRadius: 12,
-                background: flash ? (flash === "positive" ? `${t.color}55` : "rgba(239,68,68,0.3)") : "rgba(0,0,0,0.25)",
-                border: `1px solid ${flash ? t.color : t.color + "44"}`,
-                minWidth: 140, justifyContent: "center",
-                transition: "background 0.15s ease, border 0.15s ease",
-              }}>
-                <div style={{ width: 12, height: 12, borderRadius: "50%", background: t.color, flexShrink: 0 }} />
-                <div style={{ fontWeight: 700, fontSize: 15, color: "#f6f7ff" }}>{names || t.name}</div>
-                <div style={{
-                  background: t.color, color: "#fff", fontWeight: 900, fontSize: 16,
-                  padding: "3px 10px", borderRadius: 8, minWidth: 52, textAlign: "center",
-                  transform: flash ? "scale(1.12)" : "scale(1)", transition: "transform 0.15s ease",
-                }}>
-                  ${t.score.toLocaleString()}
-                </div>
-              </div>
-            );
-          })
-        )}
-
-        {/* ── Right side controls: mute + fullscreen ── */}
-        <div style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", display: "flex", gap: 6 }}>
-          {/* Mute button */}
-          <button
-            onClick={(e) => { e.stopPropagation(); setMuted((m) => !m); }}
-            title={muted ? "Unmute sound" : "Mute sound"}
-            style={{
-              background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)",
-              borderRadius: 8, color: muted ? "rgba(246,247,255,0.3)" : "rgba(246,247,255,0.7)",
-              fontSize: 16, width: 32, height: 32, cursor: "pointer",
-              display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
-            }}
-          >
-            {muted ? "🔇" : "🔊"}
-          </button>
-
-          {/* ── NEW: Fullscreen button ── */}
-          <button
-            onClick={(e) => { e.stopPropagation(); toggleFullscreen(); }}
-            title={isFullscreen ? "Exit fullscreen" : "Go fullscreen"}
-            style={{
-              background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)",
-              borderRadius: 8, color: "rgba(246,247,255,0.7)",
-              fontSize: 14, width: 32, height: 32, cursor: "pointer",
-              display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
-            }}
-          >
-            {isFullscreen ? "⛶" : "⛶"}
-          </button>
-        </div>
+    <div className="jp-score-strip">
+      {visibleTeams.length === 0 ? (
+        <div style={{ flex:1, padding:"10px 16px", color:"rgba(246,247,255,0.3)", fontSize:13 }}>Waiting for players…</div>
+      ) : visibleTeams.map((t) => {
+        const names = players.filter((p) => p.teamId === t.id).map((p) => `${p.emoji} ${p.name}`).join("  ·  ");
+        const flash = flashTeams[t.id];
+        return (
+          <div key={t.id} className={`jp-score-col ${flash === "pos" ? "flash-pos" : flash === "neg" ? "flash-neg" : ""}`}>
+            <div className="jp-score-dot" style={{ background: t.color }} />
+            <div className="jp-score-names">{names}</div>
+            <div className="jp-score-val" style={{ color: t.color }}>${t.score.toLocaleString()}</div>
+          </div>
+        );
+      })}
+      <div style={{ display:"flex", gap:6, padding:"0 10px", alignItems:"center", flexShrink:0 }}>
+        <button onClick={() => setMuted((m) => !m)}
+          style={{ width:28, height:28, borderRadius:6, border:"1px solid rgba(255,255,255,0.1)", background:"rgba(255,255,255,0.06)", cursor:"pointer", fontSize:13, color:"rgba(246,247,255,0.6)" }}>
+          {muted ? "🔇" : "🔊"}
+        </button>
+        <button onClick={toggleFullscreen}
+          style={{ width:28, height:28, borderRadius:6, border:"1px solid rgba(255,255,255,0.1)", background:"rgba(255,255,255,0.06)", cursor:"pointer", fontSize:11, color:"rgba(246,247,255,0.6)" }}>
+          {isFullscreen ? "⊠" : "⛶"}
+        </button>
       </div>
     </div>
   );
 
-  // ── Pause overlay ─────────────────────────────────────────────────────────
+  // ─── Paused overlay ───────────────────────────────────────────────────────
   if (paused) {
     return (
-      <div className="jp-root" style={{ minHeight: "100vh", display: "flex", flexDirection: "column" }}>
+      <div className="jp-root" style={{ minHeight:"100vh", display:"flex", flexDirection:"column" }}>
         <ScoreStrip />
-        <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 24, textAlign: "center", padding: 40 }}>
-          <div style={{ fontSize: "clamp(64px, 12vw, 120px)", lineHeight: 1 }}>⏸</div>
-          <div style={{ fontSize: "clamp(32px, 6vw, 64px)", fontWeight: 900, color: "#ffffff", lineHeight: 1.2, maxWidth: 700 }}>
-            {pauseMessage || "Stand By"}
-          </div>
-          <div style={{ fontSize: "clamp(14px, 2vw, 20px)", color: "rgba(246,247,255,0.4)", fontWeight: 700 }}>
-            Game paused — host will resume shortly
-          </div>
+        <div style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:16, textAlign:"center", padding:40 }}>
+          <div style={{ fontSize:"clamp(40px,7vw,72px)", fontWeight:900, color:"#ffdd75" }}>PAUSED</div>
+          {pauseMessage && <div style={{ fontSize:"clamp(16px,2.5vw,24px)", color:"rgba(246,247,255,0.6)", maxWidth:700 }}>{pauseMessage}</div>}
         </div>
       </div>
     );
@@ -259,29 +170,187 @@ export default function DisplayScreen({ state }) {
   // ─── Correct answer reveal overlay ───────────────────────────────────────
   if (revealAnswer) {
     return (
-      <div className="jp-root" style={{ minHeight: "100vh", display: "flex", flexDirection: "column" }}>
+      <div className="jp-root" style={{ minHeight:"100vh", display:"flex", flexDirection:"column" }}>
         <ScoreStrip />
-        <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", textAlign: "center", padding: 40 }}>
-          <div style={{ fontSize: 32, fontWeight: 900, color: revealAnswer.color, marginBottom: 16, letterSpacing: 1 }}>
+        <div style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:16, textAlign:"center", padding:40 }}>
+          <div className="jp-correct-pop" style={{ fontSize:"clamp(32px,6vw,64px)", fontWeight:900, color:revealAnswer.color }}>
             {revealAnswer.emoji} {revealAnswer.name}
-            
           </div>
-          <div style={{ fontSize: 72, fontWeight: 900, color: "#21c55d", lineHeight: 1 }}>CORRECT!</div>
+          <div style={{ fontSize:"clamp(18px,3vw,28px)", fontWeight:700, color:"rgba(246,247,255,0.5)", letterSpacing:2, textTransform:"uppercase" }}>Correct!</div>
         </div>
       </div>
     );
   }
 
-  // ─── Daily Double splash ──────────────────────────────────────────────────
-  if (phase === "dailyDouble") {
+  // ─── Daily Double ─────────────────────────────────────────────────────────
+  if (phase === "dailyDouble" && clue) {
+    const controlPlayer = players.find((p) => p.id === clue.wagerPlayerId);
     return (
-      <div className="jp-root" style={{ minHeight: "100vh", display: "flex", flexDirection: "column" }}>
+      <div className="jp-root" style={{ minHeight:"100vh", display:"flex", flexDirection:"column" }}>
         <ScoreStrip />
-        <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", textAlign: "center", padding: 40, gap: 24 }}>
-          <div style={{ fontSize: "clamp(16px, 3vw, 22px)", fontWeight: 700, color: "rgba(246,247,255,0.5)", letterSpacing: 4, textTransform: "uppercase" }}>{clue?.category}</div>
-          <div style={{ fontSize: "clamp(64px, 12vw, 140px)", fontWeight: 900, color: "#ffdd75", lineHeight: 1, letterSpacing: -2, textShadow: "0 4px 0 rgba(0,0,0,0.4)" }}>DAILY</div>
-          <div style={{ fontSize: "clamp(64px, 12vw, 140px)", fontWeight: 900, color: "#ffdd75", lineHeight: 1, letterSpacing: -2, textShadow: "0 4px 0 rgba(0,0,0,0.4)" }}>DOUBLE</div>
-          <div style={{ marginTop: 16, fontSize: 18, color: "rgba(246,247,255,0.45)", fontWeight: 700 }}>Waiting for wager…</div>
+        <div className="jp-dd-splash">
+          <div className="jp-dd-title">DAILY DOUBLE</div>
+          <div className="jp-dd-sub">{clue.category}</div>
+          {controlPlayer && (
+            <div style={{ marginTop:8, fontSize:"clamp(16px,2.5vw,22px)", color:"rgba(246,247,255,0.55)", fontWeight:700 }}>
+              {controlPlayer.emoji} {controlPlayer.name} is wagering…
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // ─── Final Jaypardy — Wager ───────────────────────────────────────────────
+  if (phase === "finalWager" && state?.finalJaypardy) {
+    const fj       = state.finalJaypardy;
+    const total    = players.length;
+    const submitted = Object.keys(fj.wagers ?? {}).length;
+    return (
+      <div className="jp-root" style={{ minHeight:"100vh", display:"flex", flexDirection:"column" }}>
+        <ScoreStrip />
+        <div style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:20, textAlign:"center", padding:40 }}>
+          <div style={{ fontSize:"clamp(40px,7vw,80px)", fontWeight:900, color:"#ffdd75", lineHeight:1, letterSpacing:-1 }}>FINAL JAYPARDY</div>
+          <div style={{ fontSize:"clamp(18px,3vw,28px)", fontWeight:700, color:"rgba(246,247,255,0.7)" }}>{fj.category}</div>
+          <div style={{ fontSize:"clamp(14px,2vw,20px)", color:"rgba(246,247,255,0.4)", marginTop:8 }}>{submitted} / {total} wagers placed</div>
+        </div>
+      </div>
+    );
+  }
+
+  // ─── Final Jaypardy — Clue ────────────────────────────────────────────────
+  if (phase === "finalClue" && state?.finalJaypardy) {
+    const fj       = state.finalJaypardy;
+    const total    = players.length;
+    const submitted = Object.keys(fj.answers ?? {}).length;
+    return (
+      <div className="jp-root" style={{ minHeight:"100vh", display:"flex", flexDirection:"column" }}>
+        <ScoreStrip />
+        <div style={{ flex:1, display:"flex", flexDirection:"column", padding:40 }}>
+          <div style={{ textAlign:"center", marginBottom:32 }}>
+            <div style={{ fontSize:18, fontWeight:700, color:"rgba(246,247,255,0.5)", textTransform:"uppercase", letterSpacing:2, marginBottom:8 }}>Final Jaypardy — {fj.category}</div>
+          </div>
+          <div style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"center", textAlign:"center" }}>
+            <div className="jp-clue-text">{fj.question}</div>
+          </div>
+          <div style={{ textAlign:"center", color:"rgba(246,247,255,0.4)", fontSize:16, fontWeight:700, padding:"16px 0" }}>{submitted} / {total} answers submitted</div>
+        </div>
+      </div>
+    );
+  }
+
+  // ─── Final Jaypardy — Reveal ──────────────────────────────────────────────
+  if (phase === "finalReveal" && state?.finalJaypardy) {
+    const fj       = state.finalJaypardy;
+    const revealed = fj.revealed ?? [];
+    return (
+      <div className="jp-root" style={{ minHeight:"100vh", display:"flex", flexDirection:"column" }}>
+        <ScoreStrip />
+        <div style={{ flex:1, display:"flex", flexDirection:"column", padding:32, gap:16 }}>
+          <div style={{ textAlign:"center", fontSize:28, fontWeight:900, color:"#ffdd75", marginBottom:8 }}>FINAL JAYPARDY — REVEAL</div>
+          {revealed.map((pid) => {
+            const p    = players.find((x) => x.id === pid);
+            const team = teams.find((t) => t.id === p?.teamId);
+            return (
+              <div key={pid} style={{ padding:"16px 20px", borderRadius:16, background:`${team?.color ?? "#1a3bd1"}20`, border:`2px solid ${team?.color ?? "#1a3bd1"}`, display:"flex", alignItems:"center", gap:16, animation:"jp-buzz-in 0.25s ease-out forwards" }}>
+                <div style={{ fontSize:32 }}>{p?.emoji}</div>
+                <div style={{ flex:1 }}>
+                  <div style={{ fontWeight:900, fontSize:20, color:team?.color ?? "#ffdd75" }}>{p?.name}</div>
+                  <div style={{ fontSize:16, color:"#fff", marginTop:4, fontStyle:fj.answers[pid] ? "normal":"italic", opacity:fj.answers[pid] ? 1:0.5 }}>{fj.answers[pid] || "No answer"}</div>
+                </div>
+                <div style={{ background:team?.color ?? "#ffdd75", color:"#fff", fontWeight:900, fontSize:18, padding:"6px 16px", borderRadius:10 }}>
+                  Wager: ${fj.wagers[pid]?.toLocaleString() ?? "?"}
+                </div>
+              </div>
+            );
+          })}
+          {revealed.length === 0 && (
+            <div style={{ textAlign:"center", color:"rgba(246,247,255,0.4)", fontSize:16, marginTop:40 }}>Host will reveal players one by one…</div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // ─── Game Over ────────────────────────────────────────────────────────────
+  if (phase === "gameOver") {
+    const sorted = [...teams].filter((t) => players.some((p) => p.teamId === t.id)).sort((a,b) => b.score - a.score);
+    return (
+      <div className="jp-root" style={{ minHeight:"100vh", display:"flex", flexDirection:"column" }}>
+        <ScoreStrip />
+        <div style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:40, gap:20, textAlign:"center" }}>
+          <div className="jp-gameover-title">GAME OVER</div>
+          {sorted.map((t, i) => {
+            const teamPlayers = players.filter((p) => p.teamId === t.id);
+            return (
+              <div key={t.id} className="jp-gameover-row"
+                style={{ background: i===0 ? "rgba(255,221,117,0.12)" : "rgba(255,255,255,0.04)", border: i===0 ? "2px solid rgba(255,221,117,0.5)" : "1px solid rgba(255,255,255,0.08)" }}>
+                <div className="jp-gameover-rank">{i===0 ? "🏆" : `${i+1}.`}</div>
+                <div className="jp-gameover-names" style={{ color: i===0 ? "#ffdd75":"#f6f7ff" }}>
+                  {teamPlayers.map((p) => `${p.emoji} ${p.name}`).join("  ·  ")}
+                </div>
+                <div className="jp-gameover-score" style={{ background:t.color }}>${t.score.toLocaleString()}</div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
+
+  // ─── Category Introductions ───────────────────────────────────────────────
+  if (phase === "introducing" && board) {
+    const totalCats  = board.columns.length;
+    const allRevealed = introIndex >= totalCats;
+    const currentCat  = introIndex >= 0 && introIndex < totalCats ? board.columns[introIndex] : null;
+
+    if (introIndex < 0) {
+      return (
+        <div className="jp-root" style={{ minHeight:"100vh", display:"flex", flexDirection:"column" }}>
+          <ScoreStrip />
+          <div className="jp-waiting">
+            <div className="jp-waiting-logo">JAYPARDY</div>
+            <div className="jp-waiting-sub">Get ready — categories coming up</div>
+          </div>
+        </div>
+      );
+    }
+
+    if (allRevealed) {
+      return (
+        <div className="jp-root" style={{ minHeight:"100vh" }}>
+          <ScoreStrip />
+          <div style={{ padding:12 }}>
+            <div className="jp-boardGrid">
+              {board.columns.map((col, ci) => (
+                <div className="jp-col" key={ci}>
+                  <div className="jp-cat">{col.title}</div>
+                  {col.clues.map((c, ri) => (
+                    <div key={`${ci}-${ri}`} className="jp-cell" style={{ opacity:1, cursor:"default" }}>${c.value}</div>
+                  ))}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div className="jp-root" style={{ minHeight:"100vh", display:"flex", flexDirection:"column" }}>
+        <ScoreStrip />
+        <div style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", textAlign:"center", padding:"40px 32px", gap:20 }}>
+          <div style={{ fontSize:"clamp(14px,2vw,18px)", fontWeight:700, color:"rgba(246,247,255,0.4)", letterSpacing:3, textTransform:"uppercase" }}>
+            Category {introIndex + 1} of {totalCats}
+          </div>
+          <div style={{ fontSize:"clamp(48px,9vw,100px)", fontWeight:900, color:"#ffdd75", lineHeight:1.1, letterSpacing:-1, textShadow:"0 4px 0 rgba(0,0,0,0.4)", maxWidth:900 }}>
+            {currentCat.title}
+          </div>
+          <div style={{ display:"flex", gap:10, marginTop:16 }}>
+            {board.columns.map((_, i) => (
+              <div key={i} style={{ width: i===introIndex ? 28:10, height:10, borderRadius:5, background: i<introIndex ? "rgba(255,221,117,0.6)" : i===introIndex ? "#ffdd75":"rgba(255,255,255,0.12)", transition:"all 0.3s ease" }} />
+            ))}
+          </div>
         </div>
       </div>
     );
@@ -294,228 +363,53 @@ export default function DisplayScreen({ state }) {
     const isMediaClue = !!clue.mediaUrl;
 
     return (
-      <div className="jp-root" style={{ minHeight: "100vh", display: "flex", flexDirection: "column" }}>
+      <div className="jp-root" style={{ minHeight:"100vh", display:"flex", flexDirection:"column" }}>
         <ScoreStrip />
-        <div style={{ flex: 1, display: "flex", flexDirection: "column", padding: isMediaClue ? "20px 32px" : 40 }}>
-          <div style={{ textAlign: "center", marginBottom: isMediaClue ? 16 : 32 }}>
-            <div style={{ fontSize: 18, fontWeight: 700, color: "rgba(246,247,255,0.5)", textTransform: "uppercase", letterSpacing: 2, marginBottom: 8 }}>{clue.category}</div>
-            <div style={{ fontSize: 36, fontWeight: 900, color: "#ffdd75" }}>
-              {phase === "dailyDoubleClue" ? `Daily Double — $${state.wager?.amount?.toLocaleString() ?? "?"}` : `$${clue.value}`}
+        <div style={{ flex:1, display:"flex", flexDirection:"column", padding: isMediaClue ? "20px 32px" : "32px 48px" }}>
+
+          {/* Category + value header */}
+          <div style={{ textAlign:"center", marginBottom: isMediaClue ? 16:28, flexShrink:0 }}>
+            <div style={{ display:"inline-flex", alignItems:"center", gap:12, flexWrap:"wrap", justifyContent:"center" }}>
+              <div style={{ padding:"4px 16px", borderRadius:999, background:"rgba(255,255,255,0.06)", border:"1px solid rgba(255,255,255,0.14)", fontSize:14, fontWeight:700, color:"rgba(246,247,255,0.65)", textTransform:"uppercase", letterSpacing:2 }}>
+                {clue.category}
+              </div>
+              <div style={{ padding:"4px 16px", borderRadius:999, background:"rgba(255,221,117,0.15)", border:"1px solid rgba(255,221,117,0.4)", fontSize:20, fontWeight:900, color:"#ffdd75" }}>
+                {phase === "dailyDoubleClue" ? `Daily Double — $${state.wager?.amount?.toLocaleString() ?? "?"}` : `$${clue.value}`}
+              </div>
             </div>
           </div>
 
+          {/* Clue content */}
           {isMediaClue ? (
-            <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <div style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"center" }}>
               <img src={clue.mediaUrl} alt="clue"
-                style={{ maxWidth: "100%", maxHeight: "clamp(280px, 52vh, 560px)", borderRadius: 16, boxShadow: "0 8px 40px rgba(0,0,0,0.5)", objectFit: "contain" }} />
+                style={{ maxWidth:"100%", maxHeight:"clamp(280px,52vh,560px)", borderRadius:16, boxShadow:"0 8px 40px rgba(0,0,0,0.5)", objectFit:"contain" }} />
             </div>
           ) : (
-            <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", textAlign: "center" }}>
-              <div style={{ fontSize: "clamp(28px, 5vw, 64px)", fontWeight: 900, lineHeight: 1.3, color: "#ffffff", maxWidth: 900 }}>{clue.question}</div>
+            <div className="jp-clue-card">
+              <div className="jp-clue-text">{clue.question}</div>
             </div>
           )}
 
+          {/* Wrong flash */}
           {wrongFlash && (
-            <div style={{ textAlign: "center", padding: "16px 24px", borderRadius: 16, background: "rgba(239,68,68,0.20)", border: "1px solid rgba(239,68,68,0.45)", marginBottom: 16, fontSize: 22, fontWeight: 900, color: "#fca5a5" }}>
+            <div style={{ textAlign:"center", padding:"14px 24px", borderRadius:14, background:"rgba(239,68,68,0.18)", border:"1px solid rgba(239,68,68,0.45)", marginBottom:12, fontSize:20, fontWeight:900, color:"#fca5a5", flexShrink:0 }}>
               {wrongFlash.emoji} {wrongFlash.name} — WRONG
             </div>
           )}
+
+          {/* Buzz panel */}
           {buzzer ? (
-            <div style={{ textAlign: "center", padding: "20px 32px", borderRadius: 20, background: `${buzzerTeam?.color ?? "#ffdd75"}22`, border: `2px solid ${buzzerTeam?.color ?? "#ffdd75"}`, fontSize: 32, fontWeight: 900, color: buzzerTeam?.color ?? "#ffdd75", letterSpacing: 0.5 }}>
-              {buzzer.emoji} {buzzer.name}
+            <div className="jp-buzz-panel jp-buzz-in-anim" style={{ background:`${buzzerTeam?.color ?? "#ffdd75"}18`, borderColor: buzzerTeam?.color ?? "#ffdd75" }}>
+              <div className="jp-buzz-panel-emoji">{buzzer.emoji}</div>
+              <div className="jp-buzz-panel-name" style={{ color: buzzerTeam?.color ?? "#ffdd75" }}>{buzzer.name}</div>
+              <div className="jp-buzz-badge" style={{ background: buzzerTeam?.color ?? "#ffdd75" }}>BUZZED</div>
             </div>
           ) : (
-            <div style={{ textAlign: "center", color: "rgba(246,247,255,0.3)", fontSize: 18, fontWeight: 700, letterSpacing: 1, padding: "16px 0" }}>BUZZ IN…</div>
-          )}
-        </div>
-      </div>
-    );
-  }
-
-  // ─── Final Jaypardy — Wager phase ────────────────────────────────────────
-  if (phase === "finalWager" && state?.finalJaypardy) {
-    const fj = state.finalJaypardy;
-    const submitted = Object.values(fj.wagers).filter((w) => w !== null).length;
-    const total     = Object.keys(fj.wagers).length;
-    return (
-      <div className="jp-root" style={{ minHeight: "100vh", display: "flex", flexDirection: "column" }}>
-        <ScoreStrip />
-        <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 40, textAlign: "center", gap: 24 }}>
-          <div style={{ fontSize: "clamp(48px, 10vw, 96px)", fontWeight: 900, color: "#ffdd75", lineHeight: 1, letterSpacing: -2 }}>FINAL</div>
-          <div style={{ fontSize: "clamp(48px, 10vw, 96px)", fontWeight: 900, color: "#ffdd75", lineHeight: 1, letterSpacing: -2 }}>JAYPARDY</div>
-          <div style={{ fontSize: "clamp(18px, 3vw, 28px)", fontWeight: 700, color: "#fff", marginTop: 8 }}>
-            Category: <span style={{ color: "#ffdd75" }}>{fj.category}</span>
-          </div>
-          <div style={{ fontSize: 18, color: "rgba(246,247,255,0.5)", fontWeight: 700 }}>{submitted} / {total} wagers submitted</div>
-        </div>
-      </div>
-    );
-  }
-
-  // ─── Final Jaypardy — Clue phase ─────────────────────────────────────────
-  if (phase === "finalClue" && state?.finalJaypardy) {
-    const fj = state.finalJaypardy;
-    const submitted = Object.values(fj.answers).filter((a) => a !== null && a !== "").length;
-    const total     = Object.keys(fj.answers).length;
-    return (
-      <div className="jp-root" style={{ minHeight: "100vh", display: "flex", flexDirection: "column" }}>
-        <ScoreStrip />
-        <div style={{ flex: 1, display: "flex", flexDirection: "column", padding: 40 }}>
-          <div style={{ textAlign: "center", marginBottom: 32 }}>
-            <div style={{ fontSize: 18, fontWeight: 700, color: "rgba(246,247,255,0.5)", textTransform: "uppercase", letterSpacing: 2, marginBottom: 8 }}>
-              Final Jaypardy — {fj.category}
+            <div style={{ textAlign:"center", color:"rgba(246,247,255,0.25)", fontSize:16, fontWeight:700, letterSpacing:2, padding:"14px 0", textTransform:"uppercase", flexShrink:0 }}>
+              Buzz in…
             </div>
-          </div>
-          <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", textAlign: "center" }}>
-            <div style={{ fontSize: "clamp(28px, 5vw, 64px)", fontWeight: 900, lineHeight: 1.3, color: "#fff", maxWidth: 900 }}>{fj.question}</div>
-          </div>
-          <div style={{ textAlign: "center", color: "rgba(246,247,255,0.4)", fontSize: 16, fontWeight: 700, padding: "16px 0" }}>{submitted} / {total} answers submitted</div>
-        </div>
-      </div>
-    );
-  }
-
-  // ─── Final Jaypardy — Reveal phase ───────────────────────────────────────
-  if (phase === "finalReveal" && state?.finalJaypardy) {
-    const fj       = state.finalJaypardy;
-    const revealed = fj.revealed ?? [];
-    return (
-      <div className="jp-root" style={{ minHeight: "100vh", display: "flex", flexDirection: "column" }}>
-        <ScoreStrip />
-        <div style={{ flex: 1, display: "flex", flexDirection: "column", padding: 32, gap: 16 }}>
-          <div style={{ textAlign: "center", fontSize: 28, fontWeight: 900, color: "#ffdd75", marginBottom: 8 }}>FINAL JAYPARDY — REVEAL</div>
-          {revealed.map((pid) => {
-            const p      = players.find((x) => x.id === pid);
-            const team   = teams.find((t) => t.id === p?.teamId);
-            const wager  = fj.wagers[pid];
-            const answer = fj.answers[pid];
-            return (
-              <div key={pid} style={{ padding: "16px 20px", borderRadius: 14, background: `${team?.color ?? "#1a3bd1"}22`, border: `2px solid ${team?.color ?? "#1a3bd1"}`, display: "flex", alignItems: "center", gap: 16 }}>
-                <div style={{ fontSize: 32 }}>{p?.emoji}</div>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontWeight: 900, fontSize: 20, color: team?.color ?? "#ffdd75" }}>{p?.name}</div>
-                  <div style={{ fontSize: 16, color: "#fff", marginTop: 4, fontStyle: answer ? "normal" : "italic", opacity: answer ? 1 : 0.5 }}>{answer || "No answer"}</div>
-                </div>
-                <div style={{ background: team?.color ?? "#ffdd75", color: "#fff", fontWeight: 900, fontSize: 18, padding: "6px 14px", borderRadius: 8 }}>
-                  Wager: ${wager?.toLocaleString() ?? "?"}
-                </div>
-              </div>
-            );
-          })}
-          {revealed.length === 0 && (
-            <div style={{ textAlign: "center", color: "rgba(246,247,255,0.4)", fontSize: 16, marginTop: 40 }}>Host will reveal players one by one…</div>
           )}
-        </div>
-      </div>
-    );
-  }
-
-  // ─── Game Over ────────────────────────────────────────────────────────────
-  if (phase === "gameOver") {
-    const sorted = [...teams].filter((t) => players.some((p) => p.teamId === t.id)).sort((a, b) => b.score - a.score);
-    return (
-      <div className="jp-root" style={{ minHeight: "100vh", display: "flex", flexDirection: "column" }}>
-        <ScoreStrip />
-        <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 40, gap: 20, textAlign: "center" }}>
-          <div style={{ fontSize: "clamp(48px, 8vw, 80px)", fontWeight: 900, color: "#ffdd75", lineHeight: 1 }}>GAME OVER</div>
-          {sorted.map((t, i) => {
-            const teamPlayers = players.filter((p) => p.teamId === t.id);
-            return (
-              <div key={t.id} style={{ display: "flex", alignItems: "center", gap: 16, padding: "14px 28px", borderRadius: 16, background: i === 0 ? "rgba(255,221,117,0.15)" : "rgba(255,255,255,0.04)", border: i === 0 ? "2px solid rgba(255,221,117,0.5)" : "1px solid rgba(255,255,255,0.10)", width: "100%", maxWidth: 500 }}>
-                <div style={{ fontSize: 32, width: 48 }}>{i === 0 ? "🏆" : `${i+1}.`}</div>
-                <div style={{ flex: 1, textAlign: "left" }}>
-                  <div style={{ fontWeight: 900, color: i === 0 ? "#ffdd75" : "#f6f7ff", fontSize: "clamp(18px,3vw,26px)" }}>{teamPlayers.map((p) => p.name).join(", ")}</div>
-                </div>
-                <div style={{ background: t.color, color: "#fff", fontWeight: 900, fontSize: 22, padding: "6px 16px", borderRadius: 10 }}>${t.score.toLocaleString()}</div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-    );
-  }
-
-  // ─── Introducing categories ──────────────────────────────────────────────
-  if (phase === "introducing" && board) {
-    const totalCats = board.columns.length;
-    // allRevealed = true only AFTER all 6 have been shown (index goes past the last)
-    // When index === totalCats-1 we still show the last category full screen
-    const allRevealed = introIndex >= totalCats;
-    const currentCat = introIndex >= 0 && introIndex < totalCats ? board.columns[introIndex] : null;
-
-    // Before any category is revealed — show a "get ready" screen
-    if (introIndex < 0) {
-      return (
-        <div className="jp-root" style={{ minHeight:"100vh", display:"flex", flexDirection:"column" }}>
-          <ScoreStrip />
-          <div style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", textAlign:"center", gap:24, padding:40 }}>
-            <div style={{ fontSize:"clamp(48px,10vw,96px)", fontWeight:900, color:"#ffdd75", lineHeight:1, letterSpacing:-2 }}>JAYPARDY</div>
-            <div style={{ fontSize:"clamp(16px,3vw,24px)", color:"rgba(246,247,255,0.5)", fontWeight:700 }}>Get ready — categories coming up</div>
-          </div>
-        </div>
-      );
-    }
-
-    // All revealed — show full board
-    if (allRevealed) {
-      return (
-        <div className="jp-root" style={{ minHeight:"100vh" }}>
-          <ScoreStrip />
-          <div style={{ padding:12 }}>
-            <div className="jp-boardGrid">
-              {board.columns.map((col, colIndex) => (
-                <div className="jp-col" key={colIndex}>
-                  <div className="jp-cat">{col.title}</div>
-                  {col.clues.map((c, rowIndex) => (
-                    <div key={`${colIndex}-${rowIndex}`} className="jp-cell"
-                      style={{ opacity:1, cursor:"default", fontWeight:900 }}>
-                      ${c.value}
-                    </div>
-                  ))}
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      );
-    }
-
-    // A category is being revealed — show it FULL SCREEN
-    return (
-      <div className="jp-root" style={{ minHeight:"100vh", display:"flex", flexDirection:"column" }}>
-        <ScoreStrip />
-        <div style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", textAlign:"center", padding:"40px 32px", gap:20 }}>
-
-          {/* Category number */}
-          <div style={{ fontSize:"clamp(14px,2vw,18px)", fontWeight:700, color:"rgba(246,247,255,0.4)", letterSpacing:3, textTransform:"uppercase" }}>
-            Category {introIndex + 1} of {totalCats}
-          </div>
-
-          {/* Big category name */}
-          <div style={{
-            fontSize:"clamp(48px,9vw,100px)",
-            fontWeight:900,
-            color:"#ffdd75",
-            lineHeight:1.1,
-            letterSpacing:-1,
-            textShadow:"0 4px 0 rgba(0,0,0,0.4)",
-            maxWidth:900,
-          }}>
-            {currentCat.title}
-          </div>
-
-          {/* Dots showing progress */}
-          <div style={{ display:"flex", gap:10, marginTop:16 }}>
-            {board.columns.map((_, i) => (
-              <div key={i} style={{
-                width: i === introIndex ? 28 : 10,
-                height:10,
-                borderRadius:5,
-                background: i < introIndex ? "rgba(255,221,117,0.6)" : i === introIndex ? "#ffdd75" : "rgba(255,255,255,0.12)",
-                transition:"all 0.3s ease",
-              }} />
-            ))}
-          </div>
         </div>
       </div>
     );
@@ -523,22 +417,33 @@ export default function DisplayScreen({ state }) {
 
   // ─── Board view ───────────────────────────────────────────────────────────
   return (
-    <div className="jp-root" style={{ minHeight: "100vh" }}>
+    <div className="jp-root" style={{ minHeight:"100vh", display:"flex", flexDirection:"column" }}>
+      {/* Header bar with wordmark + round */}
+      <div style={{ display:"flex", alignItems:"center", padding:"8px 14px", background:"rgba(0,0,0,0.35)", borderBottom:"1px solid rgba(255,255,255,0.07)", gap:10 }}>
+        <div style={{ fontSize:14, fontWeight:900, color:"#ffdd75", letterSpacing:1.5, marginRight:"auto" }}>JAYPARDY</div>
+        {board && <div style={{ fontSize:11, padding:"2px 10px", borderRadius:999, border:"1px solid rgba(255,255,255,0.1)", color:"rgba(246,247,255,0.4)" }}>Round {board.round}</div>}
+      </div>
       <ScoreStrip />
-      <div style={{ padding: 12 }}>
+      <div style={{ padding:10, flex:1 }}>
         {!board ? (
-          <div style={{ textAlign: "center", color: "rgba(246,247,255,0.4)", fontSize: 18, marginTop: 60 }}>
-            Waiting for host to start the game…
+          <div className="jp-waiting">
+            <div className="jp-waiting-logo">JAYPARDY</div>
+            <div className="jp-waiting-sub">Waiting for host to start…</div>
+            {visibleTeams.length > 0 && (
+              <div style={{ fontSize:14, color:"rgba(246,247,255,0.3)" }}>{players.length} player{players.length !== 1 ? "s":""} connected</div>
+            )}
           </div>
         ) : (
           <div className="jp-boardGrid">
-            {board.columns.map((col, colIndex) => (
-              <div className="jp-col" key={colIndex}>
+            {board.columns.map((col, ci) => (
+              <div className="jp-col" key={ci}>
                 <div className="jp-cat">{col.title}</div>
-                {col.clues.map((c, rowIndex) => (
-                  <div key={`${colIndex}-${rowIndex}`} className="jp-cell"
-                    style={{ opacity: c.used ? 0.2 : 1, cursor: "default", fontWeight: 900 }}>
-                    {!c.used ? `$${c.value}` : ""}
+                {col.clues.map((c, ri) => (
+                  <div key={`${ci}-${ri}`}
+                    className={`jp-cell${c.used ? " jp-cell-used" : ""}`}
+                    style={{ cursor:"default" }}>
+                    {!c.used && `$${c.value}`}
+                    {!c.used && c.mediaUrl && <span style={{ position:"absolute", bottom:6, right:8, fontSize:11, opacity:0.6 }}>🖼️</span>}
                   </div>
                 ))}
               </div>

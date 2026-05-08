@@ -434,7 +434,7 @@ export default function HostScreen({ state }) {
               </div>
               {/* Private question text */}
               <div style={{ flex:1, display:"flex", flexDirection:"column", justifyContent:"center", gap:8 }}>
-                <div style={{ fontSize:11, fontWeight:700, color:"rgba(99,179,237,0.6)", textTransform:"uppercase", letterSpacing:0.5 }}></div>
+                <div style={{ fontSize:11, fontWeight:700, color:"rgba(99,179,237,0.6)", textTransform:"uppercase", letterSpacing:0.5 }}>Your private clue text</div>
                 <div style={{ fontSize:16, fontWeight:700, color:"#fff", lineHeight:1.4 }}>{clue.question || <span style={{ opacity:0.35, fontStyle:"italic" }}>No clue text — read from image</span>}</div>
               </div>
             </div>
@@ -632,65 +632,64 @@ export default function HostScreen({ state }) {
           {/* Host controls */}
           <div className="jp-panel">
             <div className="jp-panelTitle">Controls</div>
-            <div className="jp-controlsGrid">
 
-              <button className="jp-btn" onClick={() => socket.emit("host:startJaypardy")} disabled={phase !== "lobby"}>Start Game</button>
-              {phase === "introducing" && <button className="jp-btn" onClick={() => socket.emit("host:startFromIntro")} style={{ background:"rgba(33,197,93,0.15)", borderColor:"rgba(33,197,93,0.4)", color:"#86efac" }}>Skip Intros →</button>}
-              <button className="jp-btn" onClick={() => socket.emit("host:newBoard")} disabled={phase === "lobby"}>New Board</button>
-
-              <button className="jp-btn" disabled={!canStartRound2} onClick={() => socket.emit("host:startRound2")}
-                style={canStartRound2 ? { background:"rgba(255,221,117,0.15)", borderColor:"rgba(255,221,117,0.4)", color:"#ffdd75" } : {}}>
-                Round 2
-              </button>
-              <button className="jp-btn" disabled={!canStartFinal && !isFinal} onClick={() => setShowFinalSetup(true)}
-                style={canStartFinal ? { background:"rgba(255,221,117,0.25)", borderColor:"rgba(255,221,117,0.6)", color:"#ffdd75", fontWeight:900 } : {}}>
-                Final Jaypardy
-              </button>
-
-              {confirmSkip ? (
-                <button className="jp-btn" style={{ background:"rgba(255,150,0,0.18)", borderColor:"rgba(255,150,0,0.4)", color:"#fbbf24", gridColumn:"span 2" }}
-                  onClick={() => { socket.emit("host:skipRound"); setConfirmSkip(false); }}>
-                  Confirm Skip Round
+            {/* Game flow group */}
+            <div className="jp-controls-group">
+              <div className="jp-controls-label">Game</div>
+              <div className="jp-controlsGrid">
+                <button className="jp-btn" onClick={() => socket.emit("host:startJaypardy")} disabled={phase !== "lobby"}>Start Game</button>
+                {phase === "introducing"
+                  ? <button className="jp-btn" onClick={() => socket.emit("host:startFromIntro")} style={{ background:"rgba(33,197,93,0.15)", borderColor:"rgba(33,197,93,0.4)", color:"#86efac" }}>Skip Intros →</button>
+                  : <button className="jp-btn" onClick={() => socket.emit("host:newBoard")} disabled={phase === "lobby"}>New Board</button>
+                }
+                <button className="jp-btn" disabled={!canStartRound2} onClick={() => socket.emit("host:startRound2")}
+                  style={canStartRound2 ? { background:"rgba(255,221,117,0.15)", borderColor:"rgba(255,221,117,0.4)", color:"#ffdd75" } : {}}>
+                  Round 2
                 </button>
-              ) : (
-                <button className="jp-btn" style={{ background:"rgba(255,150,0,0.08)", borderColor:"rgba(255,150,0,0.25)", color:"#fbbf24" }}
-                  disabled={phase === "lobby" || !board} onClick={() => setConfirmSkip(true)}>
-                  Skip Round
+                <button className="jp-btn" disabled={!canStartFinal && !isFinal} onClick={() => setShowFinalSetup(true)}
+                  style={canStartFinal ? { background:"rgba(255,221,117,0.25)", borderColor:"rgba(255,221,117,0.6)", color:"#ffdd75", fontWeight:900 } : {}}>
+                  Final Jaypardy
                 </button>
-              )}
+              </div>
+            </div>
 
-              {pickingDD ? (
-                <button className="jp-btn" style={{ background:"rgba(255,221,117,0.18)", borderColor:"rgba(255,221,117,0.5)", color:"#ffdd75" }}
-                  onClick={() => socket.emit("host:cancelPickDD")}>
-                  Cancel DD Pick
+            {/* Board group */}
+            <div className="jp-controls-group">
+              <div className="jp-controls-label">Board</div>
+              <div className="jp-controlsGrid">
+                {pickingDD ? (
+                  <button className="jp-btn" style={{ background:"rgba(255,221,117,0.18)", borderColor:"rgba(255,221,117,0.5)", color:"#ffdd75" }}
+                    onClick={() => socket.emit("host:cancelPickDD")}>Cancel DD Pick</button>
+                ) : (
+                  <button className="jp-btn" disabled={phase !== "board" || !board} onClick={() => socket.emit("host:clearDDs")}>Change Daily Double</button>
+                )}
+                {confirmSkip ? (
+                  <button className="jp-btn" style={{ background:"rgba(255,150,0,0.18)", borderColor:"rgba(255,150,0,0.4)", color:"#fbbf24" }}
+                    onClick={() => { socket.emit("host:skipRound"); setConfirmSkip(false); }}>
+                    Confirm Skip Round
+                  </button>
+                ) : (
+                  <button className="jp-btn" style={{ background:"rgba(255,150,0,0.08)", borderColor:"rgba(255,150,0,0.25)", color:"#fbbf24" }}
+                    disabled={phase === "lobby" || !board} onClick={() => setConfirmSkip(true)}>
+                    Skip Round
+                  </button>
+                )}
+                <button className="jp-btn" disabled={!board || phase !== "board"} onClick={() => { setThemeName(""); setShowSaveTheme(true); }}
+                  style={{ background:"rgba(99,179,237,0.12)", borderColor:"rgba(99,179,237,0.35)", color:"#90cdf4" }}>
+                  Save Theme
                 </button>
-              ) : (
-                <button className="jp-btn" disabled={phase !== "board" || !board} onClick={() => socket.emit("host:clearDDs")}>
-                  Change Daily Double
+                <button className="jp-btn" onClick={() => { setThemeSearch(""); setShowLoadTheme(true); }}
+                  style={{ background:"rgba(99,179,237,0.12)", borderColor:"rgba(99,179,237,0.35)", color:"#90cdf4" }}>
+                  Load Theme
                 </button>
-              )}
+              </div>
+            </div>
 
-              {confirmSkip && (
-                <div style={{ fontSize:11, color:"rgba(246,247,255,0.4)", gridColumn:"span 2", textAlign:"center", marginTop:-4 }}>
-                  Skips to next round without completing this one
-                  <span style={{ marginLeft:8, color:"#ffdd75", cursor:"pointer" }} onClick={() => setConfirmSkip(false)}>Cancel</span>
-                </div>
-              )}
-
-              <button className="jp-btn" disabled={!board || phase !== "board"} onClick={() => { setThemeName(""); setShowSaveTheme(true); }}
-                style={{ background:"rgba(99,179,237,0.12)", borderColor:"rgba(99,179,237,0.35)", color:"#90cdf4" }}>
-                Save Theme
-              </button>
-              <button className="jp-btn" onClick={() => { setThemeSearch(""); setShowLoadTheme(true); }}
-                style={{ background:"rgba(99,179,237,0.12)", borderColor:"rgba(99,179,237,0.35)", color:"#90cdf4" }}>
-                Load Theme
-              </button>
-
-              <button className="jp-btn" style={{ background:"rgba(160,120,255,0.10)", borderColor:"rgba(160,120,255,0.3)", color:"#c4b5fd" }} onClick={() => setShowHistory(true)}>Game History</button>
-              <button className="jp-btn" style={{ background:"rgba(34,197,94,0.10)", borderColor:"rgba(34,197,94,0.3)", color:"#86efac" }} onClick={() => setShowSounds(true)}>Sound Levels</button>
-
-              <div style={{ gridColumn:"span 2", display:"flex", flexDirection:"column", gap:6 }}>
-                <div style={{ fontSize:11, fontWeight:700, color:"rgba(246,247,255,0.4)", textTransform:"uppercase", letterSpacing:0.6 }}>Buzzer Type</div>
+            {/* Settings group */}
+            <div className="jp-controls-group">
+              <div className="jp-controls-label">Settings</div>
+              <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+                {/* Buzzer type */}
                 <div style={{ display:"flex", gap:6 }}>
                   <button onClick={() => socket.emit("host:setBuzzerType", { buzzerType:"standard" })}
                     style={{ flex:1, padding:"8px", borderRadius:8, fontSize:12, fontWeight:900, border: buzzerType==="standard" ? "2px solid rgba(255,221,117,0.6)" : "1px solid rgba(255,255,255,0.12)", background: buzzerType==="standard" ? "rgba(255,221,117,0.15)" : "rgba(255,255,255,0.05)", color: buzzerType==="standard" ? "#ffdd75" : "rgba(246,247,255,0.5)", cursor:"pointer" }}>
@@ -701,33 +700,42 @@ export default function HostScreen({ state }) {
                     🧩 Puzzle
                   </button>
                 </div>
+                <div className="jp-controlsGrid">
+                  <button className="jp-btn" style={{ background:"rgba(160,120,255,0.10)", borderColor:"rgba(160,120,255,0.3)", color:"#c4b5fd" }} onClick={() => setShowHistory(true)}>Game History</button>
+                  <button className="jp-btn" style={{ background:"rgba(34,197,94,0.10)", borderColor:"rgba(34,197,94,0.3)", color:"#86efac" }} onClick={() => setShowSounds(true)}>Sound Levels</button>
+                </div>
               </div>
+            </div>
 
-              {paused ? (
-                <button className="jp-btn" style={{ gridColumn:"span 2", background:"rgba(33,197,93,0.15)", borderColor:"rgba(33,197,93,0.4)", color:"#86efac", fontWeight:900 }}
-                  onClick={() => socket.emit("host:resume")}>
-                  Resume Game
-                </button>
-              ) : (
-                <button className="jp-btn" style={{ gridColumn:"span 2", background:"rgba(255,221,117,0.10)", borderColor:"rgba(255,221,117,0.3)", color:"#ffdd75" }}
-                  onClick={() => setPauseMenuOpen(true)}>
-                  Pause Game
-                </button>
-              )}
+            {/* Pause / Reset group */}
+            <div className="jp-controls-group">
+              <div className="jp-controlsGrid">
+                {paused ? (
+                  <button className="jp-btn" style={{ gridColumn:"span 2", background:"rgba(33,197,93,0.15)", borderColor:"rgba(33,197,93,0.4)", color:"#86efac", fontWeight:900 }}
+                    onClick={() => socket.emit("host:resume")}>
+                    Resume Game
+                  </button>
+                ) : (
+                  <button className="jp-btn" style={{ gridColumn:"span 2", background:"rgba(255,221,117,0.10)", borderColor:"rgba(255,221,117,0.3)", color:"#ffdd75" }}
+                    onClick={() => setPauseMenuOpen(true)}>
+                    Pause Game
+                  </button>
+                )}
 
               {confirmReset ? (
-                <button className="jp-btn jp-btnBad" style={{ gridColumn:"span 2" }}
-                  onClick={() => { socket.emit("host:resetGame"); setConfirmReset(false); }}>
-                  Confirm Reset
-                </button>
-              ) : (
-                <button className="jp-btn" style={{ background:"rgba(239,68,68,0.12)", borderColor:"rgba(239,68,68,0.28)", color:"#fca5a5", gridColumn:"span 2" }}
-                  onClick={() => setConfirmReset(true)}>
-                  Reset Game
-                </button>
-              )}
-
+                  <button className="jp-btn jp-btnBad" style={{ gridColumn:"span 2" }}
+                    onClick={() => { socket.emit("host:resetGame"); setConfirmReset(false); }}>
+                    Confirm Reset
+                  </button>
+                ) : (
+                  <button className="jp-btn" style={{ background:"rgba(239,68,68,0.12)", borderColor:"rgba(239,68,68,0.28)", color:"#fca5a5", gridColumn:"span 2" }}
+                    onClick={() => setConfirmReset(true)}>
+                    Reset Game
+                  </button>
+                )}
+              </div>
             </div>
+
             {confirmReset && (
               <div style={{ fontSize:11, color:"rgba(246,247,255,0.4)", marginTop:8, textAlign:"center" }}>
                 Tap Confirm Reset to wipe all scores and players
