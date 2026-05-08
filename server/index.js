@@ -134,6 +134,7 @@ const TEAMS = [
   { id: "yellow", name: "Yellow", color: "#fdd835" },
   { id: "purple", name: "Purple", color: "#8e24aa" },
   { id: "orange", name: "Orange", color: "#fb8c00" },
+  { id: "pink",   name: "Pink",   color: "#e91e8c" },
 ];
 
 const ROUND1_VALUES = [200, 400, 600, 800, 1000];
