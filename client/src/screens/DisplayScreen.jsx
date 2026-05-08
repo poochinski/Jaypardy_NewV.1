@@ -360,7 +360,7 @@ export default function DisplayScreen({ state }) {
       return (
         <div className="jp-root" style={{ minHeight:"100vh", display:"flex", flexDirection:"column" }}>
           <ScoreStrip />
-          <div className="jp-splash" style={{ flex:1 }}>
+          <div className="jp-splash" style={{ flex:1, backgroundImage:"url('/splash.png')", backgroundSize:"cover", backgroundPosition:"center center" }}>
             <div className="jp-splash-overlay" />
             <div className="jp-splash-content">
               <div style={{ fontSize:"clamp(14px,2vw,18px)", fontWeight:700, color:"rgba(246,247,255,0.5)", letterSpacing:3, textTransform:"uppercase", marginBottom:8 }}>Get ready</div>
@@ -500,7 +500,7 @@ export default function DisplayScreen({ state }) {
 
       {!board ? (
         // ── Splash / lobby screen ─────────────────────────────────────────
-        <div className="jp-splash" style={{ flex:1 }}>
+        <div className="jp-splash" style={{ flex:1, backgroundImage:"url('/splash.png')", backgroundSize:"cover", backgroundPosition:"center center" }}>
           <div className="jp-splash-overlay" />
           <div className="jp-splash-content">
             <div className="jp-splash-sub">
