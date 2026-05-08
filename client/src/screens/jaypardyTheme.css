@@ -172,16 +172,31 @@ html, body {
 .jp-boardGrid{
   display: grid;
   grid-template-columns: repeat(6, minmax(90px, 1fr));
-  gap: 2px;
-  background: rgba(0,0,0,0.25);
-  padding: 2px;
+  gap: 3px;
+  background: rgba(0,0,0,0.35);
+  padding: 3px;
+  height: 100%;
+}
+
+/* Full-height board for display screen */
+.jp-board-fullheight {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  padding: 6px;
+  overflow: hidden;
+}
+.jp-board-fullheight .jp-boardGrid {
+  flex: 1;
+  height: 100%;
 }
 
 /* Each column */
 .jp-col{
   display: grid;
-  grid-template-rows: 72px repeat(5, 84px);
+  grid-template-rows: 72px repeat(5, 1fr);
   gap: 2px;
+  height: 100%;
 }
 
 .jp-cat{
@@ -654,4 +669,105 @@ html, body {
   color: rgba(246,247,255,0.3);
   text-transform: uppercase;
   letter-spacing: 1px;
+}
+
+/* ── Display screen animations ─────────────────────────────────────────────── */
+
+@keyframes jp-fade-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes jp-cell-select {
+  0%   { transform: scale(1); }
+  50%  { transform: scale(1.06); background: rgba(255,221,117,0.3); }
+  100% { transform: scale(1); }
+}
+@keyframes jp-logo-pulse {
+  0%, 100% { text-shadow: 0 4px 0 rgba(0,0,0,0.4), 0 0 40px rgba(255,221,117,0.2); }
+  50%       { text-shadow: 0 4px 0 rgba(0,0,0,0.4), 0 0 80px rgba(255,221,117,0.45); }
+}
+@keyframes jp-score-countup {
+  from { transform: scale(1.15); color: #ffdd75; }
+  to   { transform: scale(1); }
+}
+@keyframes jp-float {
+  0%, 100% { transform: translateY(0px); }
+  50%       { transform: translateY(-8px); }
+}
+
+.jp-fade-in { animation: jp-fade-in 0.4s ease-out forwards; }
+.jp-logo-pulse { animation: jp-logo-pulse 3s ease-in-out infinite; }
+.jp-float { animation: jp-float 4s ease-in-out infinite; }
+
+/* Splash screen */
+.jp-splash {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+  background-image: url('/splash.png');
+  background-size: cover;
+  background-position: center center;
+}
+.jp-splash-overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    to bottom,
+    rgba(5,10,42,0.15) 0%,
+    rgba(5,10,42,0.05) 40%,
+    rgba(5,10,42,0.7) 75%,
+    rgba(5,10,42,0.95) 100%
+  );
+}
+.jp-splash-content {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  padding: 32px;
+  margin-top: auto;
+}
+.jp-splash-sub {
+  font-size: clamp(14px, 2vw, 20px);
+  color: rgba(246,247,255,0.55);
+  font-weight: 700;
+  letter-spacing: 2px;
+}
+.jp-splash-players {
+  font-size: clamp(13px, 1.8vw, 18px);
+  color: rgba(246,247,255,0.4);
+  font-weight: 600;
+}
+
+/* QR code container */
+.jp-qr-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 16px 20px;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 16px;
+  backdrop-filter: blur(10px);
+}
+.jp-qr-label {
+  font-size: clamp(11px, 1.5vw, 15px);
+  font-weight: 700;
+  color: rgba(246,247,255,0.5);
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+.jp-qr-url {
+  font-size: clamp(10px, 1.2vw, 13px);
+  color: rgba(246,247,255,0.35);
+  font-weight: 600;
 }
