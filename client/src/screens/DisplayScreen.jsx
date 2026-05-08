@@ -19,6 +19,8 @@ export default function DisplayScreen({ state }) {
   const [muted,         setMuted]         = useState(false);
   const [isFullscreen,  setIsFullscreen]  = useState(false);
   const [flashTeams,    setFlashTeams]    = useState({});
+  const [videoPlaying,  setVideoPlaying]  = useState(false);
+  const videoRef        = useRef(null);
   const prevPhaseRef    = useRef(null);
   const prevBuzzRef     = useRef(null);
   const revealTimer     = useRef(null);
@@ -95,6 +97,23 @@ export default function DisplayScreen({ state }) {
     socket.on("sound:cue", onCue);
     return () => socket.off("sound:cue", onCue);
   }, []);
+
+  useEffect(() => {
+    const onPlay = () => {
+      setVideoPlaying(true);
+      if (videoRef.current) {
+        videoRef.current.currentTime = 0;
+        videoRef.current.play();
+      }
+    };
+    socket.on("video:play", onPlay);
+    return () => socket.off("video:play", onPlay);
+  }, []);
+
+  // Reset video state when clue changes
+  useEffect(() => {
+    setVideoPlaying(false);
+  }, [clue?.clueId]);
 
   useEffect(() => {
     const prevBuzz = prevBuzzRef.current;
@@ -382,8 +401,25 @@ export default function DisplayScreen({ state }) {
           {/* Clue content */}
           {isMediaClue ? (
             <div style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"center" }}>
-              <img src={clue.mediaUrl} alt="clue"
-                style={{ maxWidth:"100%", maxHeight:"clamp(280px,52vh,560px)", borderRadius:16, boxShadow:"0 8px 40px rgba(0,0,0,0.5)", objectFit:"contain" }} />
+              {clue.mediaType === "video" ? (
+                videoPlaying ? (
+                  <video
+                    ref={videoRef}
+                    src={clue.mediaUrl}
+                    autoPlay
+                    style={{ maxWidth:"100%", maxHeight:"clamp(280px,55vh,600px)", borderRadius:16, boxShadow:"0 8px 40px rgba(0,0,0,0.5)", outline:"none" }}
+                    onEnded={() => setVideoPlaying(false)}
+                  />
+                ) : (
+                  <div style={{ display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:20 }}>
+                    <div style={{ fontSize:"clamp(64px,12vw,120px)", lineHeight:1 }}>🎬</div>
+                    <div style={{ fontSize:"clamp(16px,2.5vw,24px)", fontWeight:700, color:"rgba(246,247,255,0.5)" }}>Waiting for host to play…</div>
+                  </div>
+                )
+              ) : (
+                <img src={clue.mediaUrl} alt="clue"
+                  style={{ maxWidth:"100%", maxHeight:"clamp(280px,52vh,560px)", borderRadius:16, boxShadow:"0 8px 40px rgba(0,0,0,0.5)", objectFit:"contain" }} />
+              )}
             </div>
           ) : (
             <div className="jp-clue-card">
@@ -443,7 +479,7 @@ export default function DisplayScreen({ state }) {
                     className={`jp-cell${c.used ? " jp-cell-used" : ""}`}
                     style={{ cursor:"default" }}>
                     {!c.used && `$${c.value}`}
-                    {!c.used && c.mediaUrl && <span style={{ position:"absolute", bottom:6, right:8, fontSize:11, opacity:0.6 }}>🖼️</span>}
+                    {!c.used && c.mediaUrl && <span style={{ position:"absolute", bottom:6, right:8, fontSize:11, opacity:0.6 }}>{c.mediaType === "video" ? "🎬" : "🖼️"}</span>}
                   </div>
                 ))}
               </div>
