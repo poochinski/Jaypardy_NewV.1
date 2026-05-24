@@ -25,6 +25,7 @@ function ShapeIcon({ shape, color, size = 40 }) {
 function PuzzleScreen({ state, me, myTeam, phase, puzzleSeed, slotShapes, setSlotShapes }) {
   const clue = state?.currentClue;
   const { answer, pool } = puzzleSeed;
+  const [wrongAnim, setWrongAnim] = useState(false);
 
   // Reset slots when puzzle seed changes (new puzzle launched)
   useEffect(() => {
@@ -37,6 +38,20 @@ function PuzzleScreen({ state, me, myTeam, phase, puzzleSeed, slotShapes, setSlo
       socket.emit("player:puzzleSolved", { solution: slotShapes });
     }
   }, [slotShapes]);
+
+  // Listen for wrong answer feedback from server
+  useEffect(() => {
+    const onWrong = () => {
+      setWrongAnim(true);
+      // Reset shapes after a short delay so player sees the red flash first
+      setTimeout(() => {
+        setSlotShapes([null, null, null]);
+        setTimeout(() => setWrongAnim(false), 100);
+      }, 600);
+    };
+    socket.on("puzzle:wrong", onWrong);
+    return () => socket.off("puzzle:wrong", onWrong);
+  }, []);
 
   const usedInSlots = slotShapes.filter(Boolean);
   const getShapeById = (id) => pool.find((s) => s.id === id);
@@ -90,14 +105,20 @@ function PuzzleScreen({ state, me, myTeam, phase, puzzleSeed, slotShapes, setSlo
         </div>
 
         {/* Target slots — show outline silhouette of correct answer */}
-        <div style={{ display:"flex", justifyContent:"center", gap:12 }}>
+        <div style={{
+          display:"flex", justifyContent:"center", gap:12,
+          animation: wrongAnim ? "jp-shake 0.5s ease" : "none",
+        }}>
           {[0,1,2].map((i) => {
             const filled = slotShapes[i] ? getShapeById(slotShapes[i]) : null;
             const target = answer[i];
             return (
               <div key={i}
                 onClick={() => filled && removeFromSlot(i)}
-                style={{ width:76, height:76, borderRadius:14, border: filled ? `2px solid ${filled.color}` : "2px dashed rgba(255,255,255,0.2)", background: filled ? `${filled.color}20` : "rgba(255,255,255,0.03)", display:"flex", alignItems:"center", justifyContent:"center", cursor: filled ? "pointer" : "default", position:"relative", transition:"border 0.1s, background 0.1s" }}>
+                style={{ width:76, height:76, borderRadius:14,
+  border: wrongAnim ? "2px solid #ef4444" : filled ? `2px solid ${filled.color}` : "2px dashed rgba(255,255,255,0.2)",
+  background: wrongAnim ? "rgba(239,68,68,0.15)" : filled ? `${filled.color}20` : "rgba(255,255,255,0.03)",
+  display:"flex", alignItems:"center", justifyContent:"center", cursor: filled ? "pointer" : "default", position:"relative", transition:"border 0.15s, background 0.15s" }}>
                 {filled
                   ? <ShapeIcon shape={filled.shape} color={filled.color} size={48} />
                   : <ShapeIcon shape={target.shape} color="rgba(255,255,255,0.12)" size={48} />
@@ -174,8 +195,8 @@ export default function PlayerScreen({ state }) {
   const finalJaypardy = state?.finalJaypardy ?? null;
   const board         = state?.board ?? null;
 
-  const inFinal       = finalJaypardy && (socket.id in (finalJaypardy.wagers ?? {}));
-  const myFinalWager  = finalJaypardy?.wagers?.[socket.id] ?? null;
+  const inFinal       = finalJaypardy && (persistentPlayerId in (finalJaypardy.wagers ?? {}));
+  const myFinalWager  = finalJaypardy?.wagers?.[persistentPlayerId] ?? null;
   const maxFinalWager = myTeam?.score ?? 0;
   const isWagerPlayer = state?.currentClue?.wagerPlayerId === socket.id;
   const maxWager      = Math.max(myTeam?.score ?? 0, 1000);

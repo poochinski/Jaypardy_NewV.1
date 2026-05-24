@@ -448,7 +448,7 @@ io.on("connection", (socket) => {
       ...state,
       players: [
         ...state.players.filter((p) => p.id !== socket.id),
-        { id: socket.id, name: safeName, emoji: safeEmoji, teamId: finalTeamId },
+        { id: socket.id, persistentId: playerId ?? socket.id, name: safeName, emoji: safeEmoji, teamId: finalTeamId },
       ],
     };
 
@@ -835,7 +835,7 @@ io.on("connection", (socket) => {
       : pickRandom(cat.clues, 1)[0];
     const eligiblePlayers = state.players.filter((p) => p.teamId);
     const wagers = {}; const answers = {};
-    eligiblePlayers.forEach((p) => { wagers[p.id] = null; answers[p.id] = null; });
+    eligiblePlayers.forEach((p) => { wagers[p.persistentId] = null; answers[p.persistentId] = null; });
     state = { ...state, phase: "finalWager", finalJaypardy: { category: cat.category, question: clue.q, answer: clue.a, wagers, answers, revealed: [] } };
     emitState();
   });
@@ -843,11 +843,11 @@ io.on("connection", (socket) => {
   socket.on("player:submitFinalWager", ({ amount }) => {
     if (state.phase !== "finalWager" || !state.finalJaypardy) return;
     const p = state.players.find((x) => x.id === socket.id);
-    if (!p || !p.teamId || !(socket.id in state.finalJaypardy.wagers)) return;
+    if (!p || !p.teamId || !(p.persistentId in state.finalJaypardy.wagers)) return;
     const team   = state.teams.find((t) => t.id === p.teamId);
     const parsed = parseInt(amount, 10);
     if (!isFinite(parsed) || parsed < 0) return;
-    state = { ...state, finalJaypardy: { ...state.finalJaypardy, wagers: { ...state.finalJaypardy.wagers, [socket.id]: Math.min(Math.max(parsed, 0), Math.max(team?.score ?? 0, 0)) } } };
+    state = { ...state, finalJaypardy: { ...state.finalJaypardy, wagers: { ...state.finalJaypardy.wagers, [p.persistentId]: Math.min(Math.max(parsed, 0), Math.max(team?.score ?? 0, 0)) } } };
     emitState();
   });
 
@@ -857,8 +857,8 @@ io.on("connection", (socket) => {
   socket.on("player:submitFinalAnswer", ({ answer }) => {
     if (state.phase !== "finalClue" || !state.finalJaypardy) return;
     const p = state.players.find((x) => x.id === socket.id);
-    if (!p || !(socket.id in state.finalJaypardy.answers)) return;
-    state = { ...state, finalJaypardy: { ...state.finalJaypardy, answers: { ...state.finalJaypardy.answers, [socket.id]: (answer || "").trim().slice(0, 200) } } };
+    if (!p || !(p.persistentId in state.finalJaypardy.answers)) return;
+    state = { ...state, finalJaypardy: { ...state.finalJaypardy, answers: { ...state.finalJaypardy.answers, [p.persistentId]: (answer || "").trim().slice(0, 200) } } };
     emitState();
   });
 
