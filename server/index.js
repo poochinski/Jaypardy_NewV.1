@@ -870,7 +870,8 @@ io.on("connection", (socket) => {
 
   socket.on("host:markFinal", ({ playerId, correct }) => {
     if (state.phase !== "finalReveal" || !state.finalJaypardy) return;
-    const p = state.players.find((x) => x.id === playerId);
+    // playerId is persistentId — find player by persistentId
+    const p = state.players.find((x) => x.persistentId === playerId);
     if (!p) return;
     const wager = state.finalJaypardy.wagers[playerId] ?? 0;
     state = { ...state, teams: state.teams.map((t) => t.id === p.teamId ? { ...t, score: t.score + (correct ? wager : -wager) } : t) };

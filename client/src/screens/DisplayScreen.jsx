@@ -301,7 +301,7 @@ export default function DisplayScreen({ state }) {
         <div style={{ flex:1, display:"flex", flexDirection:"column", padding:32, gap:16 }}>
           <div style={{ textAlign:"center", fontSize:28, fontWeight:900, color:"#ffdd75", marginBottom:8 }}>FINAL JAYPARDY — REVEAL</div>
           {revealed.map((pid) => {
-            const p    = players.find((x) => x.id === pid);
+            const p    = players.find((x) => x.persistentId === pid || x.id === pid);
             const team = teams.find((t) => t.id === p?.teamId);
             return (
               <div key={pid} className="jp-fade-in" style={{ padding:"16px 20px", borderRadius:16, background:`${team?.color ?? "#1a3bd1"}20`, border:`2px solid ${team?.color ?? "#1a3bd1"}`, display:"flex", alignItems:"center", gap:16 }}>
@@ -360,7 +360,7 @@ export default function DisplayScreen({ state }) {
       return (
         <div className="jp-root" style={{ minHeight:"100vh", display:"flex", flexDirection:"column" }}>
           <ScoreStrip />
-          <div className="jp-splash" style={{ flex:1, backgroundImage:"url('/splash.png')", backgroundSize:"cover", backgroundPosition:"center center" }}>
+          <div className="jp-splash" style={{ flex:1 }}>
             <div className="jp-splash-overlay" />
             <div className="jp-splash-content">
               <div style={{ fontSize:"clamp(14px,2vw,18px)", fontWeight:700, color:"rgba(246,247,255,0.5)", letterSpacing:3, textTransform:"uppercase", marginBottom:8 }}>Get ready</div>
@@ -500,7 +500,7 @@ export default function DisplayScreen({ state }) {
 
       {!board ? (
         // ── Splash / lobby screen ─────────────────────────────────────────
-        <div className="jp-splash" style={{ flex:1, backgroundImage:"url('/splash.png')", backgroundSize:"cover", backgroundPosition:"center center" }}>
+        <div className="jp-splash" style={{ flex:1 }}>
           <div className="jp-splash-overlay" />
           <div className="jp-splash-content">
             <div className="jp-splash-sub">

@@ -347,7 +347,7 @@ export default function HostScreen({ state }) {
         <div style={{ flex:1, display:"flex", flexDirection:"column", padding:24, gap:12 }}>
           <div style={{ fontSize:22, fontWeight:900, color:"#ffdd75", textAlign:"center", marginBottom:8 }}>FINAL JAYPARDY — REVEAL</div>
           {eligibleIds.map((pid) => {
-            const p = players.find((x) => x.id === pid);
+            const p = players.find((x) => x.persistentId === pid || x.id === pid);
             const team = p ? teamById[p.teamId] : null;
             const wager = finalJaypardy.wagers[pid];
             const answer = finalJaypardy.answers[pid];
