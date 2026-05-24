@@ -749,7 +749,10 @@ io.on("connection", (socket) => {
       && solution.length === 3
       && solution.every((id, i) => id === answer[i].id);
 
-    if (!correct) return;
+    if (!correct) {
+      socket.emit("puzzle:wrong");
+      return;
+    }
 
     state = {
       ...state,
@@ -816,11 +819,20 @@ io.on("connection", (socket) => {
   });
 
   // ─── Final Jaypardy ───────────────────────────────────────────────────────
-  socket.on("host:startFinal", ({ category }) => {
+  // Send category clues to host for Final Jaypardy selection
+  socket.on("host:getFinalClues", ({ category }) => {
+    const cat = categoryCache.find((c) => c.category === category);
+    if (!cat) return;
+    socket.emit("host:finalClues", cat.clues.map((cl, i) => ({ index: i, q: cl.q, a: cl.a })));
+  });
+
+  socket.on("host:startFinal", ({ category, clueIndex }) => {
     if (state.phase !== "board") return;
     const cat = categoryCache.find((c) => c.category === category);
     if (!cat) return;
-    const clue            = pickRandom(cat.clues, 1)[0];
+    const clue = clueIndex !== undefined && clueIndex !== null
+      ? cat.clues[clueIndex] ?? pickRandom(cat.clues, 1)[0]
+      : pickRandom(cat.clues, 1)[0];
     const eligiblePlayers = state.players.filter((p) => p.teamId);
     const wagers = {}; const answers = {};
     eligiblePlayers.forEach((p) => { wagers[p.id] = null; answers[p.id] = null; });
