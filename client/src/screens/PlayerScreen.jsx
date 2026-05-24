@@ -574,7 +574,8 @@ export default function PlayerScreen({ state }) {
       );
     }
 
-    if (phase === "finalWager" && inFinal) {
+    if (phase === "finalWager") {
+      const hasTeam = !!me?.teamId;
       return (
         <div style={{ flex: 1, display: "flex", flexDirection: "column", padding: "20px" }}>
           <div style={{ textAlign: "center", marginBottom: 24 }}>
@@ -583,7 +584,11 @@ export default function PlayerScreen({ state }) {
               Category: <span style={{ color: "#fff", fontWeight: 700 }}>{finalJaypardy?.category}</span>
             </div>
           </div>
-          {wagerLocked || myFinalWager !== null ? (
+          {!hasTeam ? (
+            <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", color: "rgba(246,247,255,0.4)", fontSize: 15, textAlign: "center" }}>
+              You're not on a team — sit this one out
+            </div>
+          ) : wagerLocked || myFinalWager !== null ? (
             <div style={{ textAlign: "center", padding: 24, background: "rgba(33,197,93,0.08)", borderRadius: 16, border: "1px solid rgba(33,197,93,0.3)" }}>
               <div style={{ fontSize: 18, fontWeight: 900, color: "#21c55d", marginBottom: 8 }}>Wager locked in!</div>
               <div style={{ fontSize: 32, fontWeight: 900, color: "#ffdd75" }}>${(myFinalWager ?? parseInt(finalWager)).toLocaleString()}</div>
@@ -606,16 +611,8 @@ export default function PlayerScreen({ state }) {
       );
     }
 
-    if (phase === "finalWager" && !inFinal) {
-      return (
-        <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 12, textAlign: "center", padding: "20px" }}>
-          <div style={{ fontSize: 28, fontWeight: 900, color: "#ffdd75" }}>FINAL JAYPARDY</div>
-          <div style={{ fontSize: 14, color: "rgba(246,247,255,0.4)" }}>Players are placing their wagers…</div>
-        </div>
-      );
-    }
-
-    if (phase === "finalClue" && inFinal) {
+    if (phase === "finalClue") {
+      const hasTeam = !!me?.teamId;
       return (
         <div style={{ flex: 1, display: "flex", flexDirection: "column", padding: "20px" }}>
           <div style={{ fontSize: 20, fontWeight: 900, color: "#ffdd75", textAlign: "center", marginBottom: 16 }}>FINAL JAYPARDY</div>
@@ -638,15 +635,6 @@ export default function PlayerScreen({ state }) {
               </button>
             </>
           )}
-        </div>
-      );
-    }
-
-    if (phase === "finalClue" && !inFinal) {
-      return (
-        <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 12, textAlign: "center", padding: "20px" }}>
-          <div style={{ fontSize: 24, fontWeight: 900, color: "#ffdd75" }}>FINAL JAYPARDY</div>
-          <div style={{ fontSize: 14, color: "rgba(246,247,255,0.4)" }}>Players are writing their answers…</div>
         </div>
       );
     }
