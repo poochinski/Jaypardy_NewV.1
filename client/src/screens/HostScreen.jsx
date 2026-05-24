@@ -10,6 +10,7 @@ export default function HostScreen({ state }) {
   const [showFinalSetup,   setShowFinalSetup]   = useState(false);
   const [allCategories,    setAllCategories]    = useState([]);
   const [pauseMenuOpen,    setPauseMenuOpen]    = useState(false);
+  const [previewClue,      setPreviewClue]      = useState(null); // { colIndex, rowIndex, clue, col }
 
   // ── Latency map ───────────────────────────────────────────────────────────
   const [latencyMap, setLatencyMap] = useState({});
@@ -17,6 +18,12 @@ export default function HostScreen({ state }) {
     const onLatency = (map) => setLatencyMap(map);
     socket.on("latency:update", onLatency);
     return () => socket.off("latency:update", onLatency);
+  }, []);
+
+  useEffect(() => {
+    const onFinalClues = (clues) => { setFinalClues(clues); setFinalClueIndex(null); };
+    socket.on("host:finalClues", onFinalClues);
+    return () => socket.off("host:finalClues", onFinalClues);
   }, []);
 
   useEffect(() => {
@@ -36,6 +43,8 @@ export default function HostScreen({ state }) {
 
   const [finalCategory,    setFinalCategory]    = useState("");
   const [finalSearch,      setFinalSearch]      = useState("");
+  const [finalClues,       setFinalClues]       = useState([]);
+  const [finalClueIndex,   setFinalClueIndex]   = useState(null);
   const [swapSearch,       setSwapSearch]       = useState("");
   const [showHistory,      setShowHistory]      = useState(false);
   const [showSounds,       setShowSounds]       = useState(false);
@@ -416,7 +425,6 @@ export default function HostScreen({ state }) {
 
     if (isClueActive && clue) {
       const isMediaClue = !!clue.mediaUrl;
-      
       return (
         <div style={{ flex:1, display:"flex", flexDirection:"column", padding:"20px 28px", gap:14 }}>
           <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:10, flexShrink:0 }}>
@@ -553,7 +561,7 @@ export default function HostScreen({ state }) {
                   const isEligibleDD = pickingDD && !c.used && !c.isDD && rowIndex >= 1;
                   const handleClick = pickingDD
                     ? () => isEligibleDD && socket.emit("host:pickDD", { colIndex, rowIndex })
-                    : () => socket.emit("host:selectClue", { colIndex, rowIndex });
+                    : () => !c.used && setPreviewClue({ colIndex, rowIndex, clue: c, col });
                   return (
                     <button key={c.id} className="jp-cell" disabled={c.used || (pickingDD && !isEligibleDD)} onClick={handleClick}
                       style={{ opacity: c.used ? 0.3 : 1, cursor: c.used ? "not-allowed" : pickingDD && !isEligibleDD ? "not-allowed" : "pointer", outline: c.isDD ? "3px solid rgba(255,215,79,0.9)" : isEligibleDD ? "2px dashed rgba(255,215,79,0.6)" : "none" }}>
@@ -565,6 +573,58 @@ export default function HostScreen({ state }) {
                 })}
               </div>
             ))}
+          </div>
+        )}
+
+        {/* ── Clue Preview Modal ───────────────────────────────────────── */}
+        {previewClue && (
+          <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.75)", zIndex:100, display:"flex", alignItems:"center", justifyContent:"center", padding:24 }}
+            onClick={() => setPreviewClue(null)}>
+            <div onClick={(e) => e.stopPropagation()}
+              style={{ background:"#0d1640", border:"1px solid rgba(255,255,255,0.15)", borderRadius:20, padding:"28px 32px", maxWidth:480, width:"100%", display:"flex", flexDirection:"column", gap:16 }}>
+
+              {/* Header */}
+              <div style={{ display:"flex", alignItems:"center", gap:10, flexWrap:"wrap" }}>
+                <div style={{ padding:"4px 14px", borderRadius:999, background:"rgba(255,255,255,0.07)", border:"1px solid rgba(255,255,255,0.15)", fontSize:11, fontWeight:700, color:"rgba(246,247,255,0.7)", textTransform:"uppercase", letterSpacing:1 }}>
+                  {previewClue.col.title}
+                </div>
+                <div style={{ padding:"4px 14px", borderRadius:999, background:"rgba(255,221,117,0.15)", border:"1px solid rgba(255,221,117,0.4)", fontSize:14, fontWeight:900, color:"#ffdd75" }}>
+                  ${previewClue.clue.value}
+                </div>
+                {previewClue.clue.isDD && <div style={{ padding:"4px 10px", borderRadius:999, background:"rgba(255,215,79,0.2)", border:"1px solid rgba(255,215,79,0.5)", fontSize:11, fontWeight:900, color:"#ffd700" }}>DAILY DOUBLE</div>}
+                {previewClue.clue.mediaUrl && <div style={{ padding:"4px 10px", borderRadius:999, background:"rgba(99,179,237,0.15)", border:"1px solid rgba(99,179,237,0.35)", fontSize:11, fontWeight:700, color:"#90cdf4" }}>
+                  {previewClue.clue.mediaType === "video" ? "🎬 Video" : previewClue.clue.mediaType === "audio" ? "🎵 Audio" : "🖼️ Image"}
+                </div>}
+              </div>
+
+              {/* Question */}
+              <div>
+                <div style={{ fontSize:11, fontWeight:700, color:"rgba(246,247,255,0.35)", textTransform:"uppercase", letterSpacing:0.5, marginBottom:8 }}>Question (private)</div>
+                <div style={{ fontSize:18, fontWeight:700, color:"#fff", lineHeight:1.4, padding:"14px 16px", background:"rgba(255,255,255,0.05)", borderRadius:12, border:"1px solid rgba(255,255,255,0.08)" }}>
+                  {previewClue.clue.question || <span style={{ opacity:0.35, fontStyle:"italic" }}>Media clue — no question text</span>}
+                </div>
+              </div>
+
+              {/* Answer */}
+              <div>
+                <div style={{ fontSize:11, fontWeight:700, color:"rgba(255,221,117,0.5)", textTransform:"uppercase", letterSpacing:0.5, marginBottom:8 }}>Answer</div>
+                <div style={{ fontSize:16, fontWeight:900, color:"#ffdd75", padding:"12px 16px", background:"rgba(255,221,117,0.07)", borderRadius:12, border:"1px solid rgba(255,221,117,0.2)" }}>
+                  {previewClue.clue.answer}
+                </div>
+              </div>
+
+              {/* Buttons */}
+              <div style={{ display:"flex", gap:10, marginTop:4 }}>
+                <button onClick={() => setPreviewClue(null)}
+                  style={{ flex:1, padding:"12px", borderRadius:12, border:"1px solid rgba(255,255,255,0.15)", background:"rgba(255,255,255,0.07)", color:"rgba(246,247,255,0.6)", fontSize:14, fontWeight:700, cursor:"pointer" }}>
+                  Cancel
+                </button>
+                <button onClick={() => { socket.emit("host:selectClue", { colIndex: previewClue.colIndex, rowIndex: previewClue.rowIndex }); setPreviewClue(null); }}
+                  style={{ flex:2, padding:"12px", borderRadius:12, border:"none", background:"#ffdd75", color:"#000", fontSize:15, fontWeight:900, cursor:"pointer" }}>
+                  Select This Clue →
+                </button>
+              </div>
+            </div>
           </div>
         )}
       </div>
@@ -786,28 +846,60 @@ export default function HostScreen({ state }) {
           {/* Final Jaypardy setup modal */}
           {showFinalSetup && (
             <div style={{ position:"fixed", inset:0, zIndex:999, background:"rgba(0,0,0,0.75)", display:"flex", alignItems:"center", justifyContent:"center", padding:24 }}>
-              <div style={{ background:"#090f3a", border:"1px solid rgba(255,255,255,0.15)", borderRadius:20, padding:24, width:"100%", maxWidth:420 }}>
-                <div style={{ fontSize:22, fontWeight:900, color:"#ffdd75", marginBottom:16, textAlign:"center" }}>Final Jaypardy</div>
-                <input autoFocus value={finalSearch} onChange={(e) => setFinalSearch(e.target.value)} placeholder="Search categories…"
-                  style={{ width:"100%", padding:"11px 14px", fontSize:14, borderRadius:10, border:"1px solid rgba(255,255,255,0.2)", background:"rgba(255,255,255,0.08)", color:"#f6f7ff", outline:"none", marginBottom:10, boxSizing:"border-box" }} />
-                <div style={{ height:220, overflowY:"auto", border:"1px solid rgba(255,255,255,0.10)", borderRadius:10, background:"rgba(0,0,0,0.2)", marginBottom:10 }}>
-                  {allCategories.filter((c) => c.toLowerCase().includes(finalSearch.toLowerCase())).map((cat) => (
-                    <div key={cat} onClick={() => setFinalCategory(cat)}
-                      style={{ padding:"10px 14px", fontSize:13, fontWeight: finalCategory === cat ? 900 : 600, color: finalCategory === cat ? "#ffdd75" : "#f6f7ff", background: finalCategory === cat ? "rgba(255,221,117,0.15)" : "transparent", borderBottom:"1px solid rgba(255,255,255,0.05)", cursor:"pointer" }}>
-                      {cat}
+              <div style={{ background:"#090f3a", border:"1px solid rgba(255,255,255,0.15)", borderRadius:20, padding:24, width:"100%", maxWidth:460 }}>
+                <div style={{ fontSize:22, fontWeight:900, color:"#ffdd75", marginBottom:4, textAlign:"center" }}>Final Jaypardy</div>
+
+                {/* Step indicator */}
+                <div style={{ display:"flex", gap:8, justifyContent:"center", marginBottom:16 }}>
+                  <div style={{ padding:"3px 12px", borderRadius:999, fontSize:11, fontWeight:700, background: !finalClues.length ? "rgba(255,221,117,0.2)" : "rgba(255,255,255,0.06)", color: !finalClues.length ? "#ffdd75" : "rgba(246,247,255,0.4)", border: !finalClues.length ? "1px solid rgba(255,221,117,0.4)" : "1px solid rgba(255,255,255,0.08)" }}>1. Pick Category</div>
+                  <div style={{ padding:"3px 12px", borderRadius:999, fontSize:11, fontWeight:700, background: finalClues.length ? "rgba(255,221,117,0.2)" : "rgba(255,255,255,0.06)", color: finalClues.length ? "#ffdd75" : "rgba(246,247,255,0.4)", border: finalClues.length ? "1px solid rgba(255,221,117,0.4)" : "1px solid rgba(255,255,255,0.08)" }}>2. Pick Clue</div>
+                </div>
+
+                {!finalClues.length ? (
+                  /* ── Step 1: Category picker ── */
+                  <>
+                    <input autoFocus value={finalSearch} onChange={(e) => setFinalSearch(e.target.value)} placeholder="Search categories…"
+                      style={{ width:"100%", padding:"11px 14px", fontSize:14, borderRadius:10, border:"1px solid rgba(255,255,255,0.2)", background:"rgba(255,255,255,0.08)", color:"#f6f7ff", outline:"none", marginBottom:10, boxSizing:"border-box" }} />
+                    <div style={{ height:220, overflowY:"auto", border:"1px solid rgba(255,255,255,0.10)", borderRadius:10, background:"rgba(0,0,0,0.2)", marginBottom:14 }}>
+                      {allCategories.filter((c) => c.toLowerCase().includes(finalSearch.toLowerCase())).map((cat) => (
+                        <div key={cat} onClick={() => setFinalCategory(cat)}
+                          style={{ padding:"10px 14px", fontSize:13, fontWeight: finalCategory === cat ? 900 : 600, color: finalCategory === cat ? "#ffdd75" : "#f6f7ff", background: finalCategory === cat ? "rgba(255,221,117,0.15)" : "transparent", borderBottom:"1px solid rgba(255,255,255,0.05)", cursor:"pointer" }}>
+                          {cat}
+                        </div>
+                      ))}
                     </div>
-                  ))}
-                </div>
-                <div style={{ fontSize:12, color:"rgba(246,247,255,0.45)", textAlign:"center", marginBottom:14 }}>
-                  Selected: <span style={{ color:"#ffdd75", fontWeight:700 }}>{finalCategory}</span>
-                </div>
-                <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
-                  <button className="jp-btn" onClick={() => { setShowFinalSetup(false); setFinalSearch(""); }}>Cancel</button>
-                  <button className="jp-btn" style={{ background:"rgba(255,221,117,0.2)", borderColor:"rgba(255,221,117,0.5)", color:"#ffdd75", fontWeight:900 }}
-                    onClick={() => { socket.emit("host:startFinal", { category: finalCategory }); setShowFinalSetup(false); setFinalSearch(""); }}>
-                    Start Final
-                  </button>
-                </div>
+                    <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
+                      <button className="jp-btn" onClick={() => { setShowFinalSetup(false); setFinalSearch(""); setFinalClues([]); setFinalClueIndex(null); }}>Cancel</button>
+                      <button className="jp-btn" style={{ background:"rgba(255,221,117,0.2)", borderColor:"rgba(255,221,117,0.5)", color:"#ffdd75", fontWeight:900 }}
+                        disabled={!finalCategory}
+                        onClick={() => { socket.emit("host:getFinalClues", { category: finalCategory }); setFinalSearch(""); }}>
+                        Next: Pick Clue →
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  /* ── Step 2: Clue picker ── */
+                  <>
+                    <div style={{ fontSize:13, fontWeight:700, color:"rgba(255,221,117,0.7)", marginBottom:10, textAlign:"center" }}>{finalCategory}</div>
+                    <div style={{ height:260, overflowY:"auto", border:"1px solid rgba(255,255,255,0.10)", borderRadius:10, background:"rgba(0,0,0,0.2)", marginBottom:14, display:"flex", flexDirection:"column", gap:0 }}>
+                      {finalClues.map((cl, i) => (
+                        <div key={i} onClick={() => setFinalClueIndex(i)}
+                          style={{ padding:"12px 14px", borderBottom:"1px solid rgba(255,255,255,0.05)", cursor:"pointer", background: finalClueIndex === i ? "rgba(255,221,117,0.12)" : "transparent", borderLeft: finalClueIndex === i ? "3px solid #ffdd75" : "3px solid transparent" }}>
+                          <div style={{ fontSize:12, color: finalClueIndex === i ? "#ffdd75" : "#f6f7ff", fontWeight: finalClueIndex === i ? 900 : 600, lineHeight:1.4, marginBottom:4 }}>{cl.q || <span style={{ opacity:0.4, fontStyle:"italic" }}>Media clue</span>}</div>
+                          <div style={{ fontSize:11, color:"rgba(246,247,255,0.45)", fontWeight:700 }}>Answer: {cl.a}</div>
+                        </div>
+                      ))}
+                    </div>
+                    <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
+                      <button className="jp-btn" onClick={() => { setFinalClues([]); setFinalClueIndex(null); }}>← Back</button>
+                      <button className="jp-btn" style={{ background:"rgba(255,221,117,0.2)", borderColor:"rgba(255,221,117,0.5)", color:"#ffdd75", fontWeight:900 }}
+                        disabled={finalClueIndex === null}
+                        onClick={() => { socket.emit("host:startFinal", { category: finalCategory, clueIndex: finalClueIndex }); setShowFinalSetup(false); setFinalClues([]); setFinalClueIndex(null); }}>
+                        Start Final →
+                      </button>
+                    </div>
+                  </>
+                )}
               </div>
             </div>
           )}
