@@ -8,8 +8,6 @@ const EMOJIS = ["😀","😎","🔥","🐝","🧠","🎯","⚡","🍕","👑","�
 
 
 // ─── Shape helper (used by PuzzleScreen) ─────────────────────────────────────
-const SHAPES = ["circle","square","triangle","star","diamond","hexagon"];
-const COLORS = ["#e53935","#1e88e5","#43a047","#fdd835","#8e24aa","#fb8c00"];
 
 function ShapeIcon({ shape, color, size = 40 }) {
   const s = size, c = color;
@@ -197,7 +195,7 @@ export default function PlayerScreen({ state }) {
 
   const inFinal       = finalJaypardy && (persistentPlayerId in (finalJaypardy.wagers ?? {}));
   const myFinalWager  = finalJaypardy?.wagers?.[persistentPlayerId] ?? null;
-  const maxFinalWager = myTeam?.score ?? 0;
+  const maxFinalWager = Math.max(myTeam?.score ?? 0, 100);
   const isWagerPlayer = state?.currentClue?.wagerPlayerId === socket.id;
   const maxWager      = Math.max(myTeam?.score ?? 0, 1000);
 

@@ -230,10 +230,13 @@ async function buildBoard(round = 1) {
     return {
       id: `c${ci}`, title: c.category,
       hint:  c.hint || "",
-      clues: chosen.map((cl, ri) => ({
-        id: `c${ci}r${ri}`, value: values[ri],
-        question: cl.q, answer: cl.a, used: false, isDD: false,
-      })),
+      clues: chosen.map((cl, ri) => {
+        const clueData = { id:`c${ci}r${ri}`, value:values[ri], question:cl.q, answer:cl.a, used:false, isDD:false };
+        if (cl.mediaUrl)  clueData.mediaUrl  = cl.mediaUrl;
+        if (cl.mediaType) clueData.mediaType = cl.mediaType;
+        if (cl.publicId)  clueData.publicId  = cl.publicId;
+        return clueData;
+      }),
     };
   });
   const placed = new Set();
@@ -292,6 +295,8 @@ function markClueUsed(state) {
     phase:       "board",
     wager:       null,
     buzz:        freshBuzz(),
+    puzzleActive: false,
+    puzzleSeed:   null,
   };
 }
 
@@ -356,12 +361,15 @@ function resolveBuzz() {
   emitState();
 }
 
-// ─── Latency broadcast to host ────────────────────────────────────────────────
-// Sends { socketId: rtt } map to all host screens every 3 seconds
+// ─── Latency broadcast to host only ──────────────────────────────────────────
 const LATENCY_BROADCAST_INTERVAL = 3000;
 setInterval(() => {
-  if (Object.keys(playerLatency).length > 0) {
-    io.emit("latency:update", { ...playerLatency });
+  if (Object.keys(playerLatency).length === 0) return;
+  // Only send to sockets that aren't registered as players
+  for (const [sid, socket] of io.sockets.sockets) {
+    if (!socketToPlayer[sid]) {
+      socket.emit("latency:update", { ...playerLatency });
+    }
   }
 }, LATENCY_BROADCAST_INTERVAL);
 
@@ -522,6 +530,7 @@ io.on("connection", (socket) => {
     const chosen  = pickRandom(cat.clues, 5);
     const newCol  = {
       id: `c${colIndex}`, title: cat.category,
+      hint: cat.hint || "",
       clues: chosen.map((cl, ri) => {
         const clueData = { id:`c${colIndex}r${ri}`, value:values[ri], question:cl.q, answer:cl.a, used:false, isDD:false };
         if (cl.mediaUrl)  clueData.mediaUrl  = cl.mediaUrl;
@@ -551,7 +560,7 @@ io.on("connection", (socket) => {
     if (state.board.round === 1) {
       const newBoard = await buildBoard(2);
       if (!newBoard) return;
-      state = { ...state, board: newBoard, phase: "board", currentClue: null, wager: null, buzz: freshBuzz() };
+      state = { ...state, board: newBoard, phase: "introducing", currentClue: null, wager: null, buzz: freshBuzz(), introIndex: -1 };
     } else {
       state = {
         ...state, phase: "board", currentClue: null, wager: null, buzz: freshBuzz(),
@@ -634,7 +643,13 @@ io.on("connection", (socket) => {
   });
 
   socket.on("player:submitWager", ({ amount }) => {
-    if (state.phase !== "dailyDouble" || state.currentClue?.wagerPlayerId !== socket.id) return;
+    if (state.phase !== "dailyDouble") return;
+    const p = state.players.find((x) => x.id === socket.id);
+    if (!p) return;
+    // Allow the controlling player to submit — check by persistentId or socket.id
+    const controlPlayer = getControlPlayer(state);
+    if (!controlPlayer) return;
+    if (p.persistentId !== controlPlayer.persistentId && p.id !== controlPlayer.id) return;
     const parsed = parseInt(amount, 10);
     if (!isFinite(parsed) || parsed < 1) return;
     const team     = state.teams.find((t) => t.id === state.currentClue.wagerTeamId);
