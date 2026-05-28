@@ -407,7 +407,7 @@ export default function PlayerScreen({ state }) {
       lost:  { bg: "#991b1b", border: "rgba(252,165,165,0.6)",  text: "#ffffff" },
     };
     const bc = buzzColors[buzzState] ?? buzzColors.idle;
-    const buzzLabels = { idle: "BUZZ", ready: "BUZZ IN", won: "YOU GOT IT!", lost: "TOO SLOW" };
+    const buzzLabels = { idle: "BUZZ IN", ready: "BUZZ IN", won: "YOU GOT IT!", lost: "TOO SLOW" };
 
     return (
       <div style={{
@@ -625,7 +625,7 @@ export default function PlayerScreen({ state }) {
             </div>
           ) : (
             <>
-              <input value={finalAnswer} onChange={(e) => setFinalAnswer(e.target.value)} onKeyDown={(e) => e.key === "Enter" && doFinalAnswer()} placeholder="Who is… / What is…" maxLength={200}
+              <input value={finalAnswer} onChange={(e) => setFinalAnswer(e.target.value)} onKeyDown={(e) => e.key === "Enter" && doFinalAnswer()} placeholder="Type your answer…" maxLength={200}
                 style={{ width: "100%", padding: "16px", fontSize: 16, fontWeight: 700, borderRadius: 14, border: "2px solid rgba(255,255,255,0.2)", background: "rgba(255,255,255,0.07)", color: "#fff", boxSizing: "border-box", marginBottom: 14, outline: "none" }} />
               <button onClick={doFinalAnswer} disabled={!finalAnswer.trim()}
                 style={{ width: "100%", padding: 18, fontSize: 18, fontWeight: 900, borderRadius: 14, border: "none", background: finalAnswer.trim() ? "#1a3bd1" : "rgba(255,255,255,0.08)", color: finalAnswer.trim() ? "#ffdd75" : "rgba(255,255,255,0.3)", cursor: finalAnswer.trim() ? "pointer" : "not-allowed" }}>

@@ -82,11 +82,6 @@ async function getAllCategories() {
   return rows.map((r) => ({ category: r.name, clues: r.clues, hint: r.hint || "" }));
 }
 
-async function getCategoryClues(name) {
-  const { rows } = await pool.query("SELECT clues FROM categories WHERE name = $1", [name]);
-  return rows[0]?.clues ?? null;
-}
-
 async function upsertCategory(name, clues, hint = "") {
   await pool.query(
     `INSERT INTO categories (name, clues, hint) VALUES ($1, $2, $3)
@@ -838,11 +833,15 @@ io.on("connection", (socket) => {
   socket.on("host:getFinalClues", ({ category }) => {
     const cat = categoryCache.find((c) => c.category === category);
     if (!cat) return;
-    socket.emit("host:finalClues", cat.clues.map((cl, i) => ({ index: i, q: cl.q, a: cl.a })));
+    socket.emit("host:finalClues", cat.clues.map((cl, i) => ({
+      index: i, q: cl.q, a: cl.a,
+      mediaUrl: cl.mediaUrl ?? null, mediaType: cl.mediaType ?? null,
+    })));
   });
 
   socket.on("host:startFinal", ({ category, clueIndex }) => {
-    if (state.phase !== "board") return;
+    if (state.phase === "lobby" || state.phase === "introducing" || state.phase === "gameOver") return;
+    if (!state.board || state.board.round !== 2) return;
     const cat = categoryCache.find((c) => c.category === category);
     if (!cat) return;
     const clue = clueIndex !== undefined && clueIndex !== null
@@ -1004,7 +1003,6 @@ io.on("connection", (socket) => {
 // ─── Media upload endpoint ───────────────────────────────────────────────────
 app.post("/api/upload", upload.single("file"), (req, res) => {
   if (!req.file) return res.status(400).json({ error: "No file uploaded" });
-  console.log("[upload] file received:", { path: req.file.path, filename: req.file.filename, mimetype: req.file.mimetype });
   res.json({
     url:          req.file.path,
     public_id:    req.file.filename,

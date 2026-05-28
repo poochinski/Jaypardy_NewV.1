@@ -30,14 +30,15 @@ export default function HostScreen({ state }) {
     const onCats = (cats) => setAllCategories(cats);
     socket.on("categories:update", onCats);
     socket.emit("editor:getAll");
-    socket.on("editor:data", (data) => {
+    const onEditorData = (data) => {
       const cats = data.map((c) => c.category);
       setAllCategories(cats);
       setFinalCategory((prev) => prev || cats[0] || "");
-    });
+    };
+    socket.on("editor:data", onEditorData);
     return () => {
       socket.off("categories:update", onCats);
-      socket.off("editor:data");
+      socket.off("editor:data", onEditorData);
     };
   }, []);
 
@@ -209,8 +210,8 @@ export default function HostScreen({ state }) {
               <div style={{ background: t.color, color: "#fff", fontWeight: 900, fontSize: 14, padding: "2px 8px", borderRadius: 6 }}>
                 ${t.score.toLocaleString()}
               </div>
-              <button onClick={() => socket.emit("host:adjustScore", { teamId: t.id, delta: 100 })} style={{ ...adjBtn }}>+</button>
-              <button onClick={() => socket.emit("host:adjustScore", { teamId: t.id, delta: -100 })} style={{ ...adjBtn }}>−</button>
+              <button onClick={(e) => socket.emit("host:adjustScore", { teamId: t.id, delta: e.shiftKey ? 1000 : 100 })} style={{ ...adjBtn }} title="Click: +$100 | Shift+Click: +$1000">+</button>
+              <button onClick={(e) => socket.emit("host:adjustScore", { teamId: t.id, delta: e.shiftKey ? -1000 : -100 })} style={{ ...adjBtn }} title="Click: -$100 | Shift+Click: -$1000">−</button>
             </div>
           );
         })
@@ -392,7 +393,7 @@ export default function HostScreen({ state }) {
                 <div style={{ fontSize:24, fontWeight:900, color:"rgba(246,247,255,0.4)", width:32 }}>{i === 0 ? "🏆" : `${i+1}.`}</div>
                 <div style={{ flex:1, textAlign:"left" }}>
                   <div style={{ fontWeight:900, color: i === 0 ? "#ffdd75" : "#f6f7ff", fontSize:18 }}>{teamPlayers.map((p) => p.name).join(", ")}</div>
-                  <div style={{ fontSize:12, color:"rgba(246,247,255,0.5)", marginTop:2 }}>{t.name}</div>
+
                 </div>
                 <div style={{ background: t.color, color:"#fff", fontWeight:900, fontSize:20, padding:"4px 14px", borderRadius:8 }}>${t.score.toLocaleString()}</div>
               </div>
@@ -719,7 +720,8 @@ export default function HostScreen({ state }) {
                     <span style={{ fontSize:10, fontWeight:900, color:"#ffdd75", background:"rgba(255,221,117,0.15)", border:"1px solid rgba(255,221,117,0.3)", padding:"2px 6px", borderRadius:999 }}>BUZZED</span>
                   )}
                   <div onClick={(e) => e.stopPropagation()}>
-                    <select className="jp-teamSelect" value={p.teamId ?? ""} onChange={(e) => socket.emit("host:assignTeam", { playerId: p.id, teamId: e.target.value })}>
+                    <select className="jp-teamSelect" value={p.teamId ?? ""} onChange={(e) => socket.emit("host:assignTeam", { playerId: p.id, teamId: e.target.value || null })}>
+                      <option value="">— No Team —</option>
                       {teams.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
                     </select>
                   </div>
@@ -1044,10 +1046,10 @@ export default function HostScreen({ state }) {
             <input autoFocus value={swapSearch} onChange={(e) => setSwapSearch(e.target.value)} placeholder="Search categories…"
               style={{ width:"100%", padding:"11px 14px", fontSize:14, borderRadius:10, border:"1px solid rgba(255,255,255,0.2)", background:"rgba(255,255,255,0.08)", color:"#f6f7ff", outline:"none", marginBottom:10, boxSizing:"border-box" }} />
             <div style={{ height:240, overflowY:"auto", border:"1px solid rgba(255,255,255,0.10)", borderRadius:10, background:"rgba(0,0,0,0.2)", marginBottom:14 }}>
-              {availableCategories.filter((c) => c.toLowerCase().includes(swapSearch.toLowerCase())).length === 0 ? (
+              {(() => { const filtered = availableCategories.filter((c) => c.toLowerCase().includes(swapSearch.toLowerCase())); return filtered.length === 0 ? (
                 <div style={{ padding:"16px", textAlign:"center", color:"rgba(246,247,255,0.4)", fontSize:13 }}>No matches</div>
               ) : (
-                availableCategories.filter((c) => c.toLowerCase().includes(swapSearch.toLowerCase())).map((cat) => (
+                filtered.map((cat) => (
                   <div key={cat} onClick={() => { doSwap(cat); setSwapSearch(""); }}
                     style={{ padding:"10px 14px", fontSize:13, fontWeight:600, color:"#f6f7ff", background:"transparent", borderBottom:"1px solid rgba(255,255,255,0.05)", cursor:"pointer" }}
                     onMouseEnter={(e) => e.currentTarget.style.background = "rgba(255,255,255,0.08)"}
