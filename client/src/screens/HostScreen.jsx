@@ -1046,18 +1046,16 @@ export default function HostScreen({ state }) {
             <input autoFocus value={swapSearch} onChange={(e) => setSwapSearch(e.target.value)} placeholder="Search categories…"
               style={{ width:"100%", padding:"11px 14px", fontSize:14, borderRadius:10, border:"1px solid rgba(255,255,255,0.2)", background:"rgba(255,255,255,0.08)", color:"#f6f7ff", outline:"none", marginBottom:10, boxSizing:"border-box" }} />
             <div style={{ height:240, overflowY:"auto", border:"1px solid rgba(255,255,255,0.10)", borderRadius:10, background:"rgba(0,0,0,0.2)", marginBottom:14 }}>
-              {(() => { const filtered = availableCategories.filter((c) => c.toLowerCase().includes(swapSearch.toLowerCase())); return filtered.length === 0 ? (
+              {availableCategories.filter((c) => c.toLowerCase().includes(swapSearch.toLowerCase())).length === 0 ? (
                 <div style={{ padding:"16px", textAlign:"center", color:"rgba(246,247,255,0.4)", fontSize:13 }}>No matches</div>
-              ) : (
-                filtered.map((cat) => (
-                  <div key={cat} onClick={() => { doSwap(cat); setSwapSearch(""); }}
-                    style={{ padding:"10px 14px", fontSize:13, fontWeight:600, color:"#f6f7ff", background:"transparent", borderBottom:"1px solid rgba(255,255,255,0.05)", cursor:"pointer" }}
-                    onMouseEnter={(e) => e.currentTarget.style.background = "rgba(255,255,255,0.08)"}
-                    onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}>
-                    {cat}
-                  </div>
-                ))
-              )}
+              ) : availableCategories.filter((c) => c.toLowerCase().includes(swapSearch.toLowerCase())).map((cat) => (
+                <div key={cat} onClick={() => { doSwap(cat); setSwapSearch(""); }}
+                  style={{ padding:"10px 14px", fontSize:13, fontWeight:600, color:"#f6f7ff", background:"transparent", borderBottom:"1px solid rgba(255,255,255,0.05)", cursor:"pointer" }}
+                  onMouseEnter={(e) => e.currentTarget.style.background = "rgba(255,255,255,0.08)"}
+                  onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}>
+                  {cat}
+                </div>
+              ))}
             </div>
             <button className="jp-btn" style={{ width:"100%" }} onClick={() => { setSwapMenu(null); setSwapSearch(""); }}>Cancel</button>
           </div>
