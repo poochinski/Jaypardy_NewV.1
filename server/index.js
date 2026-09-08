@@ -476,7 +476,12 @@ function resolveBuzz() {
         if (result === "correct") {
           const val = state.currentClue?.value ?? 0;
           const used = markClueUsed(state);
-          state = { ...used, teams: used.teams.map((t) => t.id === botTeamId ? { ...t, score: t.score + val } : t) };
+          state = {
+            ...used,
+            teams: used.teams.map((t) => t.id === botTeamId ? { ...t, score: t.score + val } : t),
+            controlPlayerId: botPlayerId,
+            controlTeamId:   botTeamId,
+          };
           testLog("bot_mark", { result:"correct", player: p?.name, emoji: p?.emoji, value: val, scoreBefore: oldScore, scoreAfter: oldScore + val, teamId: botTeamId });
         } else {
           state = {
