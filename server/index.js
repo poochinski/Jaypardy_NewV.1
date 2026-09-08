@@ -412,7 +412,7 @@ function triggerBotBuzzes() {
   });
 }
 
-function resolveBuzz() {function resolveBuzz() {
+function resolveBuzz() {
   if (pendingBuzzes.length === 0) return;
   pendingBuzzes.sort((a, b) => a.tapTime - b.tapTime);
   const winner = pendingBuzzes[0];
