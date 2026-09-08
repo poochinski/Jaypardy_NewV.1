@@ -276,6 +276,8 @@ function freshState() {
     puzzleActive:    false,       // true when puzzle buzzer is live on player screens
     puzzleSeed:      null,        // current puzzle config (shapes, order) — same for all players
     introIndex:      -1,          // -1 = not introducing, 0-5 = which category is spotlighted
+    testMode:        false,        // true when running with bots
+    testConfig:      null,         // { numBots, numTeams, buzzSpeed, buzzAccuracy, answerAccuracy }
   };
 }
 
@@ -335,7 +337,82 @@ function clearBuzzWindow() {
   pendingBuzzes = [];
 }
 
-function resolveBuzz() {
+// ─── Test Mode Bot Engine ────────────────────────────────────────────────────
+const BOT_EMOJIS  = ["🤖","👾","🎮","🕹️","🧠","💡","⚡","🔥","🎯","🏆","🎲","🌟"];
+const BOT_NAMES   = ["Bot Alpha","Bot Beta","Bot Gamma","Bot Delta","Bot Epsilon","Bot Zeta","Bot Eta","Bot Theta","Bot Iota","Bot Kappa","Bot Lambda","Bot Mu"];
+let   botTimers   = [];
+
+function clearBotTimers() {
+  botTimers.forEach((t) => clearTimeout(t));
+  botTimers = [];
+}
+
+function spawnBots(config) {
+  const { numBots, numTeams } = config;
+  const usedTeams = TEAMS.slice(0, numTeams);
+  const bots = [];
+  for (let i = 0; i < numBots; i++) {
+    const team = usedTeams[i % usedTeams.length];
+    const persistentId = `bot_${i}_${Date.now()}`;
+    bots.push({
+      id:          persistentId, // bots use persistentId as socket id too
+      persistentId,
+      name:        BOT_NAMES[i] ?? `Bot ${i+1}`,
+      emoji:       BOT_EMOJIS[i] ?? "🤖",
+      teamId:      team.id,
+      isBot:       true,
+    });
+    // Register in playerRegistry
+    playerRegistry[persistentId] = { name: BOT_NAMES[i] ?? `Bot ${i+1}`, emoji: BOT_EMOJIS[i] ?? "🤖", teamId: team.id };
+    socketToPlayer[persistentId] = persistentId;
+  }
+  return bots;
+}
+
+function getBuzzDelay(buzzSpeed) {
+  // Returns delay in ms based on speed setting
+  switch (buzzSpeed) {
+    case "slow":   return 2000 + Math.random() * 3000;  // 2-5s
+    case "medium": return 800  + Math.random() * 1500;  // 0.8-2.3s
+    case "fast":   return 150  + Math.random() * 600;   // 150-750ms
+    case "random": {
+      const speeds = ["slow","medium","fast"];
+      return getBuzzDelay(speeds[Math.floor(Math.random() * speeds.length)]);
+    }
+    default:       return 1000 + Math.random() * 1000;
+  }
+}
+
+function triggerBotBuzzes() {
+  if (!state.testMode || !state.testConfig) return;
+  if (state.phase !== "clue" && state.phase !== "dailyDoubleClue") return;
+  const { buzzAccuracy, answerAccuracy, buzzSpeed } = state.testConfig;
+  const bots = state.players.filter((p) => p.isBot);
+
+  clearBotTimers();
+
+  bots.forEach((bot) => {
+    // Decide if this bot attempts to buzz
+    if (Math.random() > buzzAccuracy) return;
+
+    const delay = getBuzzDelay(buzzSpeed);
+    const t = setTimeout(() => {
+      if (state.phase !== "clue" && state.phase !== "dailyDoubleClue") return;
+      if (state.buzz.locked) return;
+
+      const arrivalTime = Date.now();
+      const tapTime = arrivalTime - 25; // simulate small latency
+
+      if (buzzWindowTimer === null) {
+        buzzWindowTimer = setTimeout(resolveBuzz, BUZZ_WINDOW_MS);
+      }
+      pendingBuzzes.push({ socketId: bot.id, tapTime, isBot: true, answerAccuracy });
+    }, delay);
+    botTimers.push(t);
+  });
+}
+
+function resolveBuzz() {function resolveBuzz() {
   if (pendingBuzzes.length === 0) return;
   pendingBuzzes.sort((a, b) => a.tapTime - b.tapTime);
   const winner = pendingBuzzes[0];
@@ -346,6 +423,27 @@ function resolveBuzz() {
   if (!p || !p.teamId) return;
   if (state.phase !== "clue" && state.phase !== "dailyDoubleClue") return;
   if (state.buzz.locked) return;
+
+  // If bot won, schedule auto-mark after 1.5s
+  if (p.isBot && winner.answerAccuracy !== undefined) {
+    const correct = Math.random() < winner.answerAccuracy;
+    setTimeout(() => {
+      if (state.buzz.locked && state.buzz.playerId === p.id) {
+        const result = correct ? "correct" : "wrong";
+        io.emit("sound:cue", result);
+        if (result === "correct") {
+          const val = state.currentClue?.value ?? 0;
+          state = { ...markClueUsed(state), teams: state.teams.map((t) => t.id === p.teamId ? { ...t, score: t.score + val } : t) };
+        } else {
+          // Wrong — unlock buzz so others can try
+          state = { ...state, buzz: freshBuzz(), currentClue: { ...state.currentClue, wrongPlayers: [...(state.currentClue?.wrongPlayers ?? []), p.id] } };
+          // Trigger remaining bots
+          setTimeout(triggerBotBuzzes, 300);
+        }
+        emitState();
+      }
+    }, 1500);
+  }
 
   state = {
     ...state,
@@ -633,6 +731,8 @@ io.on("connection", (socket) => {
       buzz:  freshBuzz(),
     };
     emitState();
+    // Trigger bot buzzes if in test mode
+    if (state.testMode) setTimeout(triggerBotBuzzes, 100);
   });
 
   socket.on("host:setControl", ({ playerId }) => {
@@ -959,10 +1059,52 @@ io.on("connection", (socket) => {
   });
 
   // ─── Reset / Disconnect ───────────────────────────────────────────────────
+  // ─── Test Mode ────────────────────────────────────────────────────────────
+  socket.on("host:startTestMode", async ({ numBots, numTeams, buzzSpeed, buzzAccuracy, answerAccuracy }) => {
+    if (state.phase !== "lobby") return;
+    const board = await buildBoard(1);
+    if (!board) return;
+
+    const config = {
+      numBots:        Math.min(Math.max(numBots ?? 4, 1), 12),
+      numTeams:       Math.min(Math.max(numTeams ?? 2, 1), 12),
+      buzzSpeed:      buzzSpeed ?? "medium",
+      buzzAccuracy:   Math.min(Math.max(buzzAccuracy ?? 0.7, 0), 1),
+      answerAccuracy: Math.min(Math.max(answerAccuracy ?? 0.6, 0), 1),
+    };
+
+    const bots = spawnBots(config);
+    const { playerId, teamId } = pickRandomControlPlayer(bots);
+
+    state = {
+      ...state,
+      board,
+      phase:           "introducing",
+      players:         bots,
+      testMode:        true,
+      testConfig:      config,
+      introIndex:      -1,
+      buzz:            freshBuzz(),
+      controlPlayerId: playerId,
+      controlTeamId:   teamId,
+      teams:           TEAMS.slice(0, config.numTeams).map((t) => ({ ...t, score: 0 })),
+    };
+    console.log(`[test] Started test mode with ${config.numBots} bots, ${config.numTeams} teams`);
+    emitState();
+  });
+
+  socket.on("host:stopTestMode", () => {
+    clearBotTimers();
+    clearBuzzWindow();
+    state = freshState();
+    emitState();
+  });
+
   socket.on("host:resetGame", () => {
     // Clear player registry on full reset so new game starts fresh
     Object.keys(playerRegistry).forEach((k) => delete playerRegistry[k]);
     Object.keys(socketToPlayer).forEach((k) => delete socketToPlayer[k]);
+    clearBotTimers();
     clearBuzzWindow();
     state = freshState();
     emitState();

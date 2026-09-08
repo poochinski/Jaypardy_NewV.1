@@ -10,6 +10,12 @@ export default function HostScreen({ state }) {
   const [showFinalSetup,   setShowFinalSetup]   = useState(false);
   const [allCategories,    setAllCategories]    = useState([]);
   const [pauseMenuOpen,    setPauseMenuOpen]    = useState(false);
+  const [showTestSetup,    setShowTestSetup]    = useState(false);
+  const [testBots,         setTestBots]         = useState(4);
+  const [testTeams,        setTestTeams]        = useState(2);
+  const [testBuzzSpeed,    setTestBuzzSpeed]    = useState("medium");
+  const [testBuzzAcc,      setTestBuzzAcc]      = useState(0.7);
+  const [testAnsAcc,       setTestAnsAcc]       = useState(0.6);
   const [previewClue,      setPreviewClue]      = useState(null); // { colIndex, rowIndex, clue, col }
 
   // ── Latency map ───────────────────────────────────────────────────────────
@@ -101,6 +107,8 @@ export default function HostScreen({ state }) {
   const introIndex   = state?.introIndex ?? -1;
   const pauseMessage = state?.pauseMessage ?? "";
   const buzzerType   = state?.buzzerType ?? "standard";
+  const testMode     = state?.testMode ?? false;
+  const testConfig   = state?.testConfig ?? null;
   const puzzleActive = state?.puzzleActive ?? false;
 
   const controlPlayerId = state?.controlPlayerId ?? null;
@@ -638,7 +646,12 @@ export default function HostScreen({ state }) {
 
       <header className="jp-topbar">
         <div className="jp-title">JAYPARDY — HOST</div>
-        {board && (
+        {testMode && (
+          <div className="jp-chip" style={{ background:"rgba(160,120,255,0.2)", borderColor:"rgba(160,120,255,0.5)", color:"#c4b5fd" }}>
+            🧪 TEST MODE
+          </div>
+        )}
+        {board && !testMode && (
           <div className="jp-chip">Round <b>{board.round}</b></div>
         )}
         {!socket.connected && (
@@ -739,6 +752,16 @@ export default function HostScreen({ state }) {
               <div className="jp-controls-label">Game</div>
               <div className="jp-controlsGrid">
                 <button className="jp-btn" onClick={() => socket.emit("host:startJaypardy")} disabled={phase !== "lobby"}>Start Game</button>
+              <button className="jp-btn" onClick={() => setShowTestSetup(true)} disabled={phase !== "lobby"}
+                style={{ background:"rgba(160,120,255,0.12)", borderColor:"rgba(160,120,255,0.4)", color:"#c4b5fd" }}>
+                🧪 Test Mode
+              </button>
+              {testMode && (
+                <button className="jp-btn" onClick={() => socket.emit("host:stopTestMode")}
+                  style={{ gridColumn:"span 2", background:"rgba(239,68,68,0.12)", borderColor:"rgba(239,68,68,0.3)", color:"#fca5a5" }}>
+                  Stop Test Mode
+                </button>
+              )}
                 {phase === "introducing"
                   ? <button className="jp-btn" onClick={() => socket.emit("host:startFromIntro")} style={{ background:"rgba(33,197,93,0.15)", borderColor:"rgba(33,197,93,0.4)", color:"#86efac" }}>Skip Intros →</button>
                   : <button className="jp-btn" onClick={() => socket.emit("host:newBoard")} disabled={phase === "lobby"}>New Board</button>
@@ -1062,6 +1085,100 @@ export default function HostScreen({ state }) {
         </div>
       )}
 
+    </div>
+
+      {/* ── Test Mode Setup Modal ─────────────────────────────────────────── */}
+      {showTestSetup && (
+        <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.8)", zIndex:200, display:"flex", alignItems:"center", justifyContent:"center", padding:24 }}
+          onClick={() => setShowTestSetup(false)}>
+          <div onClick={(e) => e.stopPropagation()}
+            style={{ background:"#0d1640", border:"2px solid rgba(160,120,255,0.4)", borderRadius:20, padding:"28px 32px", maxWidth:420, width:"100%", display:"flex", flexDirection:"column", gap:18 }}>
+
+            <div style={{ fontSize:20, fontWeight:900, color:"#c4b5fd", textAlign:"center" }}>🧪 Test Mode Setup</div>
+
+            {/* Num bots */}
+            <div>
+              <div style={{ fontSize:12, fontWeight:700, color:"rgba(246,247,255,0.5)", marginBottom:6 }}>Number of Bots: <span style={{ color:"#c4b5fd" }}>{testBots}</span></div>
+              <input type="range" min={1} max={12} value={testBots} onChange={(e) => setTestBots(+e.target.value)}
+                style={{ width:"100%", accentColor:"#c4b5fd" }} />
+              <div style={{ display:"flex", justifyContent:"space-between", fontSize:11, color:"rgba(246,247,255,0.3)" }}><span>1</span><span>12</span></div>
+            </div>
+
+            {/* Num teams */}
+            <div>
+              <div style={{ fontSize:12, fontWeight:700, color:"rgba(246,247,255,0.5)", marginBottom:6 }}>Number of Teams: <span style={{ color:"#c4b5fd" }}>{testTeams}</span></div>
+              <input type="range" min={1} max={Math.min(testBots, 12)} value={testTeams} onChange={(e) => setTestTeams(+e.target.value)}
+                style={{ width:"100%", accentColor:"#c4b5fd" }} />
+              <div style={{ display:"flex", justifyContent:"space-between", fontSize:11, color:"rgba(246,247,255,0.3)" }}><span>1</span><span>{Math.min(testBots, 12)}</span></div>
+            </div>
+
+            {/* Buzz speed */}
+            <div>
+              <div style={{ fontSize:12, fontWeight:700, color:"rgba(246,247,255,0.5)", marginBottom:6 }}>Buzz Speed</div>
+              <div style={{ display:"flex", gap:6 }}>
+                {["slow","medium","fast","random"].map((s) => (
+                  <button key={s} onClick={() => setTestBuzzSpeed(s)}
+                    style={{ flex:1, padding:"8px 4px", borderRadius:8, fontSize:11, fontWeight:700, border: testBuzzSpeed===s ? "2px solid #c4b5fd":"1px solid rgba(255,255,255,0.12)", background: testBuzzSpeed===s ? "rgba(160,120,255,0.2)":"rgba(255,255,255,0.05)", color: testBuzzSpeed===s ? "#c4b5fd":"rgba(246,247,255,0.5)", cursor:"pointer", textTransform:"capitalize" }}>
+                    {s}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Buzz accuracy */}
+            <div>
+              <div style={{ fontSize:12, fontWeight:700, color:"rgba(246,247,255,0.5)", marginBottom:6 }}>
+                Buzz Attempt Rate: <span style={{ color:"#c4b5fd" }}>{Math.round(testBuzzAcc * 100)}%</span>
+                <span style={{ fontSize:11, color:"rgba(246,247,255,0.3)", marginLeft:6 }}>(how often bots try to buzz)</span>
+              </div>
+              <input type="range" min={0} max={100} value={Math.round(testBuzzAcc * 100)} onChange={(e) => setTestBuzzAcc(e.target.value / 100)}
+                style={{ width:"100%", accentColor:"#c4b5fd" }} />
+            </div>
+
+            {/* Answer accuracy */}
+            <div>
+              <div style={{ fontSize:12, fontWeight:700, color:"rgba(246,247,255,0.5)", marginBottom:6 }}>
+                Answer Accuracy: <span style={{ color:"#c4b5fd" }}>{Math.round(testAnsAcc * 100)}%</span>
+                <span style={{ fontSize:11, color:"rgba(246,247,255,0.3)", marginLeft:6 }}>(how often they get it right)</span>
+              </div>
+              <input type="range" min={0} max={100} value={Math.round(testAnsAcc * 100)} onChange={(e) => setTestAnsAcc(e.target.value / 100)}
+                style={{ width:"100%", accentColor:"#c4b5fd" }} />
+            </div>
+
+            {/* Preset buttons */}
+            <div>
+              <div style={{ fontSize:12, fontWeight:700, color:"rgba(246,247,255,0.5)", marginBottom:6 }}>Quick Presets</div>
+              <div style={{ display:"flex", gap:6 }}>
+                {[
+                  { label:"Chill", bots:3, teams:2, speed:"slow",   buzz:0.5, ans:0.8 },
+                  { label:"Normal", bots:6, teams:3, speed:"medium", buzz:0.7, ans:0.6 },
+                  { label:"Chaos", bots:10, teams:4, speed:"fast",   buzz:1.0, ans:0.5 },
+                ].map((p) => (
+                  <button key={p.label} onClick={() => { setTestBots(p.bots); setTestTeams(p.teams); setTestBuzzSpeed(p.speed); setTestBuzzAcc(p.buzz); setTestAnsAcc(p.ans); }}
+                    style={{ flex:1, padding:"8px", borderRadius:8, fontSize:12, fontWeight:700, border:"1px solid rgba(255,255,255,0.15)", background:"rgba(255,255,255,0.06)", color:"rgba(246,247,255,0.7)", cursor:"pointer" }}>
+                    {p.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Buttons */}
+            <div style={{ display:"flex", gap:10 }}>
+              <button onClick={() => setShowTestSetup(false)}
+                style={{ flex:1, padding:"12px", borderRadius:12, border:"1px solid rgba(255,255,255,0.15)", background:"rgba(255,255,255,0.07)", color:"rgba(246,247,255,0.6)", fontSize:14, fontWeight:700, cursor:"pointer" }}>
+                Cancel
+              </button>
+              <button onClick={() => {
+                socket.emit("host:startTestMode", { numBots:testBots, numTeams:testTeams, buzzSpeed:testBuzzSpeed, buzzAccuracy:testBuzzAcc, answerAccuracy:testAnsAcc });
+                setShowTestSetup(false);
+              }}
+                style={{ flex:2, padding:"12px", borderRadius:12, border:"none", background:"#c4b5fd", color:"#000", fontSize:15, fontWeight:900, cursor:"pointer" }}>
+                🧪 Start Test
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
