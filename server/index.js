@@ -333,9 +333,15 @@ function compensatedTapTime(socketId, serverArrivalTime) {
 let pendingBuzzes   = [];
 let buzzWindowTimer = null;
 
+// ─── Per-clue buzz deduplication ─────────────────────────────────────────────
+// Tracks which sockets have already sent a buzz for the current clue
+// Prevents spam-tapping from giving multiple chances to win
+let buzzedThisClue = new Set();
+
 function clearBuzzWindow() {
   if (buzzWindowTimer) { clearTimeout(buzzWindowTimer); buzzWindowTimer = null; }
   pendingBuzzes = [];
+  buzzedThisClue = new Set();
 }
 
 // ─── Test Mode Bot Engine ────────────────────────────────────────────────────
@@ -830,6 +836,10 @@ io.on("connection", (socket) => {
     if (state.phase === "dailyDoubleClue" && p.id !== state.currentClue?.wagerPlayerId) return;
     if (state.currentClue?.wrongPlayers?.includes(socket.id)) return;
 
+    // One buzz per player per clue — ignore spam taps
+    if (buzzedThisClue.has(socket.id)) return;
+    buzzedThisClue.add(socket.id);
+
     const serverArrival = Date.now();
     const tapTime       = compensatedTapTime(socket.id, serverArrival);
 
@@ -980,6 +990,9 @@ io.on("connection", (socket) => {
     } else if (result === "wrong" && state.buzz.locked && state.buzz.teamId) {
       const logEntry = { ...baseLog, result: "wrong", player: buzzer?.name ?? "?", team: buzzerTeam?.name ?? "?", teamColor: buzzerTeam?.color ?? "#ef4444", scoreDelta: `-$${scoreChange.toLocaleString()}` };
       const updatedWrongPlayers = [...(state.currentClue.wrongPlayers ?? []), state.buzz.playerId];
+      // Clear buzzedThisClue so everyone gets another chance
+      // The wrong player is blocked via wrongPlayers so no need to re-add them
+      buzzedThisClue = new Set();
       const deducted = {
         ...state,
         teams: state.teams.map((t) => t.id === state.buzz.teamId ? { ...t, score: t.score - scoreChange } : t),
