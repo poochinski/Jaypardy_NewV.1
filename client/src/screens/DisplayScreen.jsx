@@ -211,7 +211,7 @@ export default function DisplayScreen({ state }) {
   // ─── Paused ───────────────────────────────────────────────────────────────
   if (paused) {
     return (
-      <div className="jp-root" style={{ minHeight:"100vh", display:"flex", flexDirection:"column" }}>
+      <div className="jp-root" style={{ height:"100vh", height:"100dvh", display:"flex", flexDirection:"column", overflow:"hidden" }}>
         <ScoreStrip />
         <div style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:16, textAlign:"center", padding:40 }}>
           <div style={{ fontSize:"clamp(40px,7vw,72px)", fontWeight:900, color:"#ffdd75" }}>PAUSED</div>
@@ -224,7 +224,7 @@ export default function DisplayScreen({ state }) {
   // ─── Correct reveal ───────────────────────────────────────────────────────
   if (revealAnswer) {
     return (
-      <div className="jp-root" style={{ minHeight:"100vh", display:"flex", flexDirection:"column" }}>
+      <div className="jp-root" style={{ height:"100vh", height:"100dvh", display:"flex", flexDirection:"column", overflow:"hidden" }}>
         <ScoreStrip />
         <div style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:16, textAlign:"center", padding:40 }}>
           <div className="jp-correct-pop" style={{ fontSize:"clamp(32px,6vw,64px)", fontWeight:900, color:revealAnswer.color }}>
@@ -240,7 +240,7 @@ export default function DisplayScreen({ state }) {
   if (phase === "dailyDouble" && clue) {
     const controlPlayer = players.find((p) => p.id === clue.wagerPlayerId);
     return (
-      <div className="jp-root" style={{ minHeight:"100vh", display:"flex", flexDirection:"column" }}>
+      <div className="jp-root" style={{ height:"100vh", height:"100dvh", display:"flex", flexDirection:"column", overflow:"hidden" }}>
         <ScoreStrip />
         <div className="jp-dd-splash">
           <div className="jp-dd-title">DAILY DOUBLE</div>
@@ -260,7 +260,7 @@ export default function DisplayScreen({ state }) {
     const fj        = state.finalJaypardy;
     const submitted = Object.keys(fj.wagers ?? {}).length;
     return (
-      <div className="jp-root" style={{ minHeight:"100vh", display:"flex", flexDirection:"column" }}>
+      <div className="jp-root" style={{ height:"100vh", height:"100dvh", display:"flex", flexDirection:"column", overflow:"hidden" }}>
         <ScoreStrip />
         <div style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:20, textAlign:"center", padding:40 }}>
           <div style={{ fontSize:"clamp(40px,7vw,80px)", fontWeight:900, color:"#ffdd75", lineHeight:1, letterSpacing:-1 }}>FINAL JAYPARDY</div>
@@ -276,7 +276,7 @@ export default function DisplayScreen({ state }) {
     const fj        = state.finalJaypardy;
     const submitted = Object.keys(fj.answers ?? {}).length;
     return (
-      <div className="jp-root" style={{ minHeight:"100vh", display:"flex", flexDirection:"column" }}>
+      <div className="jp-root" style={{ height:"100vh", height:"100dvh", display:"flex", flexDirection:"column", overflow:"hidden" }}>
         <ScoreStrip />
         <div style={{ flex:1, display:"flex", flexDirection:"column", padding:40 }}>
           <div style={{ textAlign:"center", marginBottom:32 }}>
@@ -296,7 +296,7 @@ export default function DisplayScreen({ state }) {
     const fj       = state.finalJaypardy;
     const revealed = fj.revealed ?? [];
     return (
-      <div className="jp-root" style={{ minHeight:"100vh", display:"flex", flexDirection:"column" }}>
+      <div className="jp-root" style={{ height:"100vh", height:"100dvh", display:"flex", flexDirection:"column", overflow:"hidden" }}>
         <ScoreStrip />
         <div style={{ flex:1, display:"flex", flexDirection:"column", padding:32, gap:16 }}>
           <div style={{ textAlign:"center", fontSize:28, fontWeight:900, color:"#ffdd75", marginBottom:8 }}>FINAL JAYPARDY — REVEAL</div>
@@ -328,7 +328,7 @@ export default function DisplayScreen({ state }) {
   if (phase === "gameOver") {
     const sorted = [...teams].filter((t) => players.some((p) => p.teamId === t.id)).sort((a,b) => b.score - a.score);
     return (
-      <div className="jp-root" style={{ minHeight:"100vh", display:"flex", flexDirection:"column" }}>
+      <div className="jp-root" style={{ height:"100vh", height:"100dvh", display:"flex", flexDirection:"column", overflow:"hidden" }}>
         <ScoreStrip />
         <div style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:40, gap:20, textAlign:"center" }}>
           <div className="jp-gameover-title">GAME OVER</div>
@@ -358,7 +358,7 @@ export default function DisplayScreen({ state }) {
 
     if (introIndex < 0) {
       return (
-        <div className="jp-root" style={{ minHeight:"100vh", display:"flex", flexDirection:"column" }}>
+        <div className="jp-root" style={{ height:"100vh", height:"100dvh", display:"flex", flexDirection:"column", overflow:"hidden" }}>
           <ScoreStrip />
           <div className="jp-splash" style={{ flex:1 }}>
             <div className="jp-splash-overlay" />
@@ -373,7 +373,7 @@ export default function DisplayScreen({ state }) {
 
     if (allRevealed) {
       return (
-        <div className="jp-root" style={{ minHeight:"100vh", display:"flex", flexDirection:"column" }}>
+        <div className="jp-root" style={{ height:"100vh", height:"100dvh", display:"flex", flexDirection:"column", overflow:"hidden" }}>
           <ScoreStrip />
           <div className="jp-board-fullheight">
             <div className="jp-boardGrid">
@@ -392,7 +392,7 @@ export default function DisplayScreen({ state }) {
     }
 
     return (
-      <div className="jp-root" style={{ minHeight:"100vh", display:"flex", flexDirection:"column" }}>
+      <div className="jp-root" style={{ height:"100vh", height:"100dvh", display:"flex", flexDirection:"column", overflow:"hidden" }}>
         <ScoreStrip />
         <div style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", textAlign:"center", padding:"40px 32px", gap:20 }}>
           <div style={{ fontSize:"clamp(14px,2vw,18px)", fontWeight:700, color:"rgba(246,247,255,0.4)", letterSpacing:3, textTransform:"uppercase" }}>
@@ -418,7 +418,7 @@ export default function DisplayScreen({ state }) {
     const isMediaClue = !!clue.mediaUrl;
 
     return (
-      <div className="jp-root" style={{ minHeight:"100vh", display:"flex", flexDirection:"column" }}>
+      <div className="jp-root" style={{ height:"100vh", height:"100dvh", display:"flex", flexDirection:"column", overflow:"hidden" }}>
         <ScoreStrip />
         <div style={{ flex:1, display:"flex", flexDirection:"column", padding: isMediaClue ? "20px 32px":"32px 48px", opacity: clueVisible ? 1:0, transition:"opacity 0.3s ease" }}>
 
@@ -489,7 +489,7 @@ export default function DisplayScreen({ state }) {
 
   // ─── Board view ───────────────────────────────────────────────────────────
   return (
-    <div className="jp-root" style={{ minHeight:"100vh", display:"flex", flexDirection:"column" }}>
+    <div className="jp-root" style={{ height:"100vh", height:"100dvh", display:"flex", flexDirection:"column", overflow:"hidden" }}>
       {board && (
         <div style={{ display:"flex", alignItems:"center", padding:"6px 14px", background:"rgba(0,0,0,0.4)", borderBottom:"1px solid rgba(255,255,255,0.07)", gap:10 }}>
           <div style={{ fontSize:13, fontWeight:900, color:"#ffdd75", letterSpacing:1.5, marginRight:"auto" }}>JAYPARDY</div>

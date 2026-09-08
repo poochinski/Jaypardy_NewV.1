@@ -44,11 +44,6 @@ html, body {
 .jp-root{
   min-height: 100vh;
   min-height: 100dvh;
-  height: 100vh;
-  height: 100dvh;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
   background:
     radial-gradient(1200px 700px at 25% 0%, rgba(255, 221, 117, 0.10), transparent 55%),
     radial-gradient(900px 600px at 80% 20%, rgba(60, 99, 255, 0.20), transparent 55%),
