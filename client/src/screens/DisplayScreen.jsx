@@ -195,13 +195,13 @@ export default function DisplayScreen({ state }) {
           </div>
         );
       })}
-      <div style={{ display:"flex", gap:6, padding:"0 10px", alignItems:"center", flexShrink:0 }}>
+      <div style={{ display:"flex", gap:4, padding:"0 6px", alignItems:"center", flexShrink:0 }}>
         <button onClick={() => setMuted((m) => !m)}
-          style={{ width:28, height:28, borderRadius:6, border:"1px solid rgba(255,255,255,0.1)", background:"rgba(255,255,255,0.06)", cursor:"pointer", fontSize:13, color:"rgba(246,247,255,0.6)" }}>
+          style={{ width:24, height:24, borderRadius:5, border:"1px solid rgba(255,255,255,0.1)", background:"rgba(255,255,255,0.06)", cursor:"pointer", fontSize:11, color:"rgba(246,247,255,0.6)", display:"flex", alignItems:"center", justifyContent:"center" }}>
           {muted ? "🔇" : "🔊"}
         </button>
         <button onClick={toggleFullscreen}
-          style={{ width:28, height:28, borderRadius:6, border:"1px solid rgba(255,255,255,0.1)", background:"rgba(255,255,255,0.06)", cursor:"pointer", fontSize:11, color:"rgba(246,247,255,0.6)" }}>
+          style={{ width:24, height:24, borderRadius:5, border:"1px solid rgba(255,255,255,0.1)", background:"rgba(255,255,255,0.06)", cursor:"pointer", fontSize:10, color:"rgba(246,247,255,0.6)", display:"flex", alignItems:"center", justifyContent:"center" }}>
           {isFullscreen ? "⊠" : "⛶"}
         </button>
       </div>
@@ -518,7 +518,7 @@ export default function DisplayScreen({ state }) {
         </div>
       ) : (
         // ── Full-height board ─────────────────────────────────────────────
-        <div className="jp-board-fullheight">
+        <div className="jp-board-fullheight" style={{ flex:1, minHeight:0 }}>
           <div className="jp-boardGrid">
             {board.columns.map((col, ci) => (
               <div className="jp-col" key={ci}>

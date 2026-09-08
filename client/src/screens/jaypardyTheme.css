@@ -43,7 +43,12 @@ html, body {
 /* full-page background */
 .jp-root{
   min-height: 100vh;
-  min-height: 100dvh; /* dynamic viewport height — correct on mobile browsers */
+  min-height: 100dvh;
+  height: 100vh;
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
   background:
     radial-gradient(1200px 700px at 25% 0%, rgba(255, 221, 117, 0.10), transparent 55%),
     radial-gradient(900px 600px at 80% 20%, rgba(60, 99, 255, 0.20), transparent 55%),
@@ -185,17 +190,21 @@ html, body {
   flex: 1;
   padding: 6px;
   overflow: hidden;
+  min-height: 0;
 }
 .jp-board-fullheight .jp-boardGrid {
   flex: 1;
   height: 100%;
+  min-height: 0;
 }
 
 /* Each column */
 .jp-col{
   display: grid;
-  grid-template-rows: 72px repeat(5, 84px);
+  grid-template-rows: clamp(44px, 8vh, 72px) repeat(5, 1fr);
   gap: 2px;
+  height: 100%;
+  min-height: 0;
 }
 
 .jp-cat{
@@ -205,7 +214,7 @@ html, body {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 10px;
+  padding: clamp(4px, 0.8vw, 10px);
   text-align: center;
   font-weight: 900;
   text-transform: uppercase;
@@ -213,7 +222,8 @@ html, body {
   color: #ffffff;
   text-shadow: 0 2px 0 rgba(0,0,0,0.35);
   line-height: 1.1;
-  font-size: 14px;
+  font-size: clamp(9px, 1.2vw, 14px);
+  overflow: hidden;
 }
 
 /* cells */
@@ -225,13 +235,14 @@ html, body {
   cursor: pointer;
   color: var(--jp-gold2);
   font-weight: 900;
-  font-size: 24px;
+  font-size: clamp(13px, 2vw, 26px);
   letter-spacing: 0.4px;
   text-shadow: 0 2px 0 rgba(0,0,0,0.35);
   transition: transform 0.08s ease, filter 0.12s ease, opacity 0.12s ease;
   display: flex;
   align-items: center;
   justify-content: center;
+  overflow: hidden;
 }
 
 .jp-cell:hover{
@@ -470,37 +481,45 @@ html, body {
   display: flex;
   background: rgba(0,0,0,0.35);
   border-bottom: 1px solid rgba(255,255,255,0.07);
+  overflow: hidden;
+  flex-shrink: 0;
+  min-height: 0;
 }
 .jp-score-col {
   flex: 1;
+  min-width: 0;
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 8px 14px;
+  gap: clamp(3px, 0.5vw, 8px);
+  padding: clamp(4px, 0.8vh, 10px) clamp(4px, 0.8vw, 14px);
   border-right: 1px solid rgba(255,255,255,0.06);
   transition: background 0.3s ease;
+  overflow: hidden;
 }
 .jp-score-col:last-child { border-right: none; }
 .jp-score-col.flash-pos { background: rgba(33,197,93,0.18); }
 .jp-score-col.flash-neg { background: rgba(239,68,68,0.18); }
 .jp-score-dot {
-  width: 9px; height: 9px;
+  width: clamp(5px, 0.7vw, 9px);
+  height: clamp(5px, 0.7vw, 9px);
   border-radius: 50%;
   flex-shrink: 0;
 }
 .jp-score-names {
-  font-size: 12px;
+  font-size: clamp(8px, 1vw, 12px);
   font-weight: 700;
   flex: 1;
+  min-width: 0;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   color: rgba(246,247,255,0.85);
 }
 .jp-score-val {
-  font-size: 14px;
+  font-size: clamp(9px, 1.1vw, 14px);
   font-weight: 900;
   flex-shrink: 0;
+  white-space: nowrap;
 }
 
 /* Clue card on display */
@@ -709,7 +728,6 @@ html, body {
   text-align: center;
   position: relative;
   overflow: hidden;
- 
 }
 .jp-splash-overlay {
   position: absolute;
@@ -767,4 +785,15 @@ html, body {
   font-size: clamp(10px, 1.2vw, 13px);
   color: rgba(246,247,255,0.35);
   font-weight: 600;
+}
+
+@keyframes jp-shake {
+  0%   { transform: translateX(0); }
+  15%  { transform: translateX(-8px); }
+  30%  { transform: translateX(8px); }
+  45%  { transform: translateX(-6px); }
+  60%  { transform: translateX(6px); }
+  75%  { transform: translateX(-3px); }
+  90%  { transform: translateX(3px); }
+  100% { transform: translateX(0); }
 }

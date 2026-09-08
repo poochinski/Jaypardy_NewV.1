@@ -210,40 +210,57 @@ export default function HostScreen({ state }) {
   };
 
   // ─── Score strip ──────────────────────────────────────────────────────────
-  const ScoreStrip = () => (
-    <div style={{
-      display: "flex", gap: 8, padding: "10px 14px",
-      borderBottom: "1px solid rgba(255,255,255,0.08)",
-      background: "rgba(0,0,0,0.18)", flexWrap: "wrap",
-    }}>
-      {visibleTeams.length === 0 ? (
-        <div style={{ color: "rgba(246,247,255,0.4)", fontSize: 13 }}>
-          No teams yet — players will appear after joining
-        </div>
-      ) : (
-        visibleTeams.map((t) => {
-          const teamPlayers = players.filter((p) => p.teamId === t.id);
-          const names       = teamPlayers.map((p) => p.name).join(", ");
-          return (
-            <div key={t.id} style={{
-              display: "flex", alignItems: "center", gap: 8,
-              padding: "6px 12px", borderRadius: 10,
-              background: "rgba(0,0,0,0.22)", border: `1px solid ${t.color}44`,
-              flex: 1, minWidth: 120,
-            }}>
-              <div style={{ width: 10, height: 10, borderRadius: "50%", background: t.color, flexShrink: 0 }} />
-              <div style={{ fontWeight: 700, fontSize: 13, flex: 1 }}>{names || t.name}</div>
-              <div style={{ background: t.color, color: "#fff", fontWeight: 900, fontSize: 14, padding: "2px 8px", borderRadius: 6 }}>
-                ${t.score.toLocaleString()}
+  const ScoreStrip = () => {
+    const count = visibleTeams.length;
+    const compact = count > 6;
+    const veryCompact = count > 9;
+    return (
+      <div style={{
+        display:"flex",
+        overflowX: count > 8 ? "auto" : "visible",
+        flexWrap: count <= 8 ? "wrap" : "nowrap",
+        gap: veryCompact ? 3 : compact ? 5 : 8,
+        padding: compact ? "6px 10px" : "10px 14px",
+        borderBottom:"1px solid rgba(255,255,255,0.08)",
+        background:"rgba(0,0,0,0.18)",
+        flexShrink:0,
+      }}>
+        {visibleTeams.length === 0 ? (
+          <div style={{ color:"rgba(246,247,255,0.4)", fontSize:13 }}>
+            No teams yet — players will appear after joining
+          </div>
+        ) : (
+          visibleTeams.map((t) => {
+            const teamPlayers = players.filter((p) => p.teamId === t.id);
+            const names = teamPlayers.map((p) => p.name).join(", ");
+            return (
+              <div key={t.id} style={{
+                display:"flex", alignItems:"center",
+                gap: veryCompact ? 3 : 6,
+                padding: veryCompact ? "4px 7px" : compact ? "5px 9px" : "6px 12px",
+                borderRadius:9,
+                background:"rgba(0,0,0,0.22)",
+                border:`1px solid ${t.color}44`,
+                flex: count <= 8 ? 1 : "none",
+                minWidth: veryCompact ? 90 : 110,
+                flexShrink:0,
+              }}>
+                <div style={{ width: veryCompact ? 7:10, height: veryCompact ? 7:10, borderRadius:"50%", background:t.color, flexShrink:0 }} />
+                <div style={{ fontWeight:700, fontSize: veryCompact ? 10 : compact ? 11 : 13, flex:1, minWidth:0, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
+                  {names || t.name}
+                </div>
+                <div style={{ background:t.color, color:"#fff", fontWeight:900, fontSize: veryCompact ? 10 : compact ? 11 : 14, padding: veryCompact ? "1px 5px" : "2px 8px", borderRadius:6, flexShrink:0 }}>
+                  ${t.score.toLocaleString()}
+                </div>
+                <button onClick={(e) => socket.emit("host:adjustScore", { teamId:t.id, delta: e.shiftKey ? 1000:100 })} style={{ ...adjBtn, width: veryCompact ? 18:22, height: veryCompact ? 18:22, fontSize: veryCompact ? 10:12 }} title="Click: +$100 | Shift+Click: +$1000">+</button>
+                <button onClick={(e) => socket.emit("host:adjustScore", { teamId:t.id, delta: e.shiftKey ? -1000:-100 })} style={{ ...adjBtn, width: veryCompact ? 18:22, height: veryCompact ? 18:22, fontSize: veryCompact ? 10:12 }} title="Click: -$100 | Shift+Click: -$1000">−</button>
               </div>
-              <button onClick={(e) => socket.emit("host:adjustScore", { teamId: t.id, delta: e.shiftKey ? 1000 : 100 })} style={{ ...adjBtn }} title="Click: +$100 | Shift+Click: +$1000">+</button>
-              <button onClick={(e) => socket.emit("host:adjustScore", { teamId: t.id, delta: e.shiftKey ? -1000 : -100 })} style={{ ...adjBtn }} title="Click: -$100 | Shift+Click: -$1000">−</button>
-            </div>
-          );
-        })
-      )}
-    </div>
-  );
+            );
+          })
+        )}
+      </div>
+    );
+  };
 
   // ─── Main area ────────────────────────────────────────────────────────────
   const MainArea = () => {
