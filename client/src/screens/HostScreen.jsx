@@ -1085,8 +1085,6 @@ export default function HostScreen({ state }) {
         </div>
       )}
 
-    </div>
-
       {/* ── Test Mode Setup Modal ─────────────────────────────────────────── */}
       {showTestSetup && (
         <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.8)", zIndex:200, display:"flex", alignItems:"center", justifyContent:"center", padding:24 }}
