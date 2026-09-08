@@ -150,6 +150,7 @@ const VALID_EMOJIS = new Set([
 const playerLatency = {};
 const PING_INTERVAL  = 5000;
 const MAX_LATENCY    = 500;
+const BUZZ_WINDOW_MS = 100; // ms window to collect simultaneous buzzes
 const LOCKOUT_WINDOW = 100;
 
 // ─── Player registry — persists across reconnections ─────────────────────────
