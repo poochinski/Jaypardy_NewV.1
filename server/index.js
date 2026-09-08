@@ -427,20 +427,30 @@ function resolveBuzz() {
   // If bot won, schedule auto-mark after 1.5s
   if (p.isBot && winner.answerAccuracy !== undefined) {
     const correct = Math.random() < winner.answerAccuracy;
+    const botPlayerId = p.id;
+    const botTeamId   = p.teamId;
     setTimeout(() => {
-      if (state.buzz.locked && state.buzz.playerId === p.id) {
+      try {
+        // Make sure the game is still in the same state
+        if (!state.buzz.locked || state.buzz.playerId !== botPlayerId) return;
+        if (state.phase !== "clue" && state.phase !== "dailyDoubleClue") return;
         const result = correct ? "correct" : "wrong";
         io.emit("sound:cue", result);
         if (result === "correct") {
           const val = state.currentClue?.value ?? 0;
-          state = { ...markClueUsed(state), teams: state.teams.map((t) => t.id === p.teamId ? { ...t, score: t.score + val } : t) };
+          const used = markClueUsed(state);
+          state = { ...used, teams: used.teams.map((t) => t.id === botTeamId ? { ...t, score: t.score + val } : t) };
         } else {
-          // Wrong — unlock buzz so others can try
-          state = { ...state, buzz: freshBuzz(), currentClue: { ...state.currentClue, wrongPlayers: [...(state.currentClue?.wrongPlayers ?? []), p.id] } };
-          // Trigger remaining bots
+          state = {
+            ...state,
+            buzz: freshBuzz(),
+            currentClue: state.currentClue ? { ...state.currentClue, wrongPlayers: [...(state.currentClue.wrongPlayers ?? []), botPlayerId] } : null,
+          };
           setTimeout(triggerBotBuzzes, 300);
         }
         emitState();
+      } catch (err) {
+        console.error("[bot] auto-mark error:", err.message);
       }
     }, 1500);
   }
