@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState, useEffect, useRef } from "react";
 import { socket } from "../socket";
 import "./jaypardyTheme.css";
 import { playBuzz, playCorrect, playWrong, playDDChime, volumes, setVolume } from "../sounds";
@@ -25,6 +25,24 @@ export default function HostScreen({ state }) {
     socket.on("latency:update", onLatency);
     return () => socket.off("latency:update", onLatency);
   }, []);
+
+  // ── Test event log ─────────────────────────────────────────────────────────
+  const [testEvents,    setTestEvents]    = useState([]);
+  const [testPanelOpen, setTestPanelOpen] = useState(true);
+  const testLogRef = useRef(null);
+
+  useEffect(() => {
+    const onTestEvent = (evt) => {
+      setTestEvents((prev) => [...prev.slice(-200), { ...evt, id: Date.now() + Math.random() }]);
+    };
+    socket.on("test:event", onTestEvent);
+    return () => socket.off("test:event", onTestEvent);
+  }, []);
+
+  // Auto-scroll test log
+  useEffect(() => {
+    if (testLogRef.current) testLogRef.current.scrollTop = testLogRef.current.scrollHeight;
+  }, [testEvents]);
 
   useEffect(() => {
     const onFinalClues = (clues) => { setFinalClues(clues); setFinalClueIndex(null); };
@@ -1083,6 +1101,58 @@ export default function HostScreen({ state }) {
             <button className="jp-btn" style={{ width:"100%" }} onClick={() => { setSwapMenu(null); setSwapSearch(""); }}>Cancel</button>
           </div>
         </div>
+      )}
+
+      {/* ── Test Panel ───────────────────────────────────────────────────── */}
+      {testMode && testPanelOpen && (
+        <div style={{ position:"fixed", right:0, top:0, bottom:0, width:360, background:"rgba(5,8,30,0.97)", borderLeft:"1px solid rgba(160,120,255,0.3)", zIndex:50, display:"flex", flexDirection:"column", fontFamily:"ui-monospace,monospace" }}>
+          <div style={{ padding:"10px 14px", background:"rgba(160,120,255,0.15)", borderBottom:"1px solid rgba(160,120,255,0.3)", display:"flex", alignItems:"center", gap:8 }}>
+            <div style={{ fontSize:13, fontWeight:900, color:"#c4b5fd", flex:1 }}>🧪 Test Log</div>
+            <button onClick={() => setTestEvents([])} style={{ fontSize:10, padding:"3px 8px", borderRadius:6, border:"1px solid rgba(255,255,255,0.15)", background:"rgba(255,255,255,0.07)", color:"rgba(246,247,255,0.5)", cursor:"pointer" }}>Clear</button>
+            <button onClick={() => setTestPanelOpen(false)} style={{ fontSize:12, padding:"3px 8px", borderRadius:6, border:"1px solid rgba(255,255,255,0.15)", background:"rgba(255,255,255,0.07)", color:"rgba(246,247,255,0.5)", cursor:"pointer" }}>✕</button>
+          </div>
+          <div ref={testLogRef} style={{ flex:1, overflowY:"auto", padding:"8px 0" }}>
+            {testEvents.length === 0 && (
+              <div style={{ padding:"20px 14px", color:"rgba(246,247,255,0.3)", fontSize:12, textAlign:"center" }}>No events yet — select a clue to start</div>
+            )}
+            {testEvents.map((evt) => {
+              const time = new Date(evt.ts).toLocaleTimeString("en-US", { hour12:false, hour:"2-digit", minute:"2-digit", second:"2-digit", fractionalSecondDigits:3 });
+              const cfgMap = {
+                clue_selected:     { icon:"🎯", color:"#ffdd75", label:"CLUE SELECTED" },
+                buzz_window_opened:{ icon:"📡", color:"#60a5fa", label:"BUZZ WINDOW" },
+                buzz_attempt:      { icon:"⚡", color:"#a78bfa", label:"BUZZ ATTEMPT" },
+                buzz_resolved:     { icon:"🔒", color:"#34d399", label:"BUZZ RESOLVED" },
+                bot_mark:          { icon: evt.result === "correct" ? "✅":"❌", color: evt.result === "correct" ? "#34d399":"#f87171", label:"BOT MARK" },
+                host_mark:         { icon: evt.result === "correct" ? "✅":"❌", color: evt.result === "correct" ? "#34d399":"#f87171", label:"HOST MARK" },
+                phase_change:      { icon:"🔄", color:"#94a3b8", label:"PHASE" },
+              };
+              const cfg = cfgMap[evt.type] ?? { icon:"•", color:"rgba(246,247,255,0.4)", label:evt.type };
+              return (
+                <div key={evt.id} style={{ padding:"7px 14px", borderBottom:"1px solid rgba(255,255,255,0.04)", fontSize:11 }}>
+                  <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:3 }}>
+                    <span>{cfg.icon}</span>
+                    <span style={{ color:cfg.color, fontWeight:700, letterSpacing:0.5 }}>{cfg.label}</span>
+                    <span style={{ marginLeft:"auto", color:"rgba(246,247,255,0.3)", fontSize:10 }}>{time}</span>
+                  </div>
+                  <div style={{ color:"rgba(246,247,255,0.55)", lineHeight:1.5, paddingLeft:18 }}>
+                    {evt.type === "clue_selected" && <span>{evt.category} · ${evt.value}{evt.isDD ? " · 🌟 DD":""}{evt.hasMedia ? ` · ${evt.mediaType === "video" ? "🎬":"🖼️"}`:""}</span>}
+                    {evt.type === "buzz_window_opened" && <span>Window: {evt.windowMs}ms</span>}
+                    {evt.type === "buzz_attempt" && <span>{evt.emoji} {evt.player} — offset: {evt.latencyOffset}ms{evt.openedWindow ? " · opened window":""}</span>}
+                    {evt.type === "buzz_resolved" && <span>{evt.winnerEmoji} {evt.winner}{evt.marginMs !== null ? ` · margin: ${evt.marginMs}ms`:""} · {evt.totalAttempts} attempt{evt.totalAttempts !== 1 ? "s":""}</span>}
+                    {(evt.type === "bot_mark" || evt.type === "host_mark") && <span>{evt.emoji} {evt.player} · {evt.result === "correct" ? `+$${evt.value ?? 0} → $${evt.scoreAfter ?? "?"}` : "wrong"}</span>}
+                    {evt.type === "phase_change" && <span>{evt.from ?? "—"} → {evt.to}</span>}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+      {testMode && !testPanelOpen && (
+        <button onClick={() => setTestPanelOpen(true)}
+          style={{ position:"fixed", right:0, top:"50%", transform:"translateY(-50%)", padding:"12px 6px", background:"rgba(160,120,255,0.2)", border:"1px solid rgba(160,120,255,0.4)", borderRight:"none", color:"#c4b5fd", fontWeight:700, fontSize:10, cursor:"pointer", zIndex:50, borderRadius:"8px 0 0 8px", writingMode:"vertical-rl" }}>
+          🧪 LOG
+        </button>
       )}
 
       {/* ── Test Mode Setup Modal ─────────────────────────────────────────── */}

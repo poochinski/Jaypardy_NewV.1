@@ -348,6 +348,16 @@ function clearBotTimers() {
   botTimers = [];
 }
 
+// ─── Test event logger ───────────────────────────────────────────────────────
+function testLog(type, data = {}) {
+  if (!state.testMode) return;
+  io.emit("test:event", {
+    type,
+    ts: Date.now(),
+    ...data,
+  });
+}
+
 function spawnBots(config) {
   const { numBots, numTeams } = config;
   const usedTeams = TEAMS.slice(0, numTeams);
@@ -403,9 +413,17 @@ function triggerBotBuzzes() {
 
       const arrivalTime = Date.now();
       const tapTime = arrivalTime - 25; // simulate small latency
+      const wasFirst = buzzWindowTimer === null;
 
-      if (buzzWindowTimer === null) {
+      testLog("buzz_attempt", {
+        player: bot.name, emoji: bot.emoji, teamId: bot.teamId,
+        rawTap: arrivalTime, latencyOffset: -25, adjustedTap: tapTime,
+        openedWindow: wasFirst,
+      });
+
+      if (wasFirst) {
         buzzWindowTimer = setTimeout(resolveBuzz, BUZZ_WINDOW_MS);
+        testLog("buzz_window_opened", { windowMs: BUZZ_WINDOW_MS });
       }
       pendingBuzzes.push({ socketId: bot.id, tapTime, isBot: true, answerAccuracy });
     }, delay);
@@ -417,6 +435,8 @@ function resolveBuzz() {
   if (pendingBuzzes.length === 0) return;
   pendingBuzzes.sort((a, b) => a.tapTime - b.tapTime);
   const winner = pendingBuzzes[0];
+  const second = pendingBuzzes[1];
+  const allAttempts = [...pendingBuzzes];
   pendingBuzzes = [];
   buzzWindowTimer = null;
 
@@ -424,6 +444,14 @@ function resolveBuzz() {
   if (!p || !p.teamId) return;
   if (state.phase !== "clue" && state.phase !== "dailyDoubleClue") return;
   if (state.buzz.locked) return;
+
+  testLog("buzz_resolved", {
+    winner: p.name, winnerEmoji: p.emoji, winnerTeam: p.teamId,
+    winnerTime: winner.tapTime,
+    marginMs: second ? Math.round(winner.tapTime - second.tapTime) : null,
+    totalAttempts: allAttempts.length,
+    isBot: !!p.isBot,
+  });
 
   // If bot won, schedule auto-mark after 1.5s
   if (p.isBot && winner.answerAccuracy !== undefined) {
@@ -437,16 +465,20 @@ function resolveBuzz() {
         if (state.phase !== "clue" && state.phase !== "dailyDoubleClue") return;
         const result = correct ? "correct" : "wrong";
         io.emit("sound:cue", result);
+        const team = state.teams.find((t) => t.id === botTeamId);
+        const oldScore = team?.score ?? 0;
         if (result === "correct") {
           const val = state.currentClue?.value ?? 0;
           const used = markClueUsed(state);
           state = { ...used, teams: used.teams.map((t) => t.id === botTeamId ? { ...t, score: t.score + val } : t) };
+          testLog("bot_mark", { result:"correct", player: p?.name, emoji: p?.emoji, value: val, scoreBefore: oldScore, scoreAfter: oldScore + val, teamId: botTeamId });
         } else {
           state = {
             ...state,
             buzz: freshBuzz(),
             currentClue: state.currentClue ? { ...state.currentClue, wrongPlayers: [...(state.currentClue.wrongPlayers ?? []), botPlayerId] } : null,
           };
+          testLog("bot_mark", { result:"wrong", player: p?.name, emoji: p?.emoji, teamId: botTeamId });
           setTimeout(triggerBotBuzzes, 300);
         }
         emitState();
@@ -483,7 +515,14 @@ setInterval(() => {
 }, LATENCY_BROADCAST_INTERVAL);
 
 let state = freshState();
-function emitState() { io.emit("state:update", state); }
+let _lastPhase = null;
+function emitState() {
+  if (state.testMode && state.phase !== _lastPhase) {
+    testLog("phase_change", { from: _lastPhase, to: state.phase });
+    _lastPhase = state.phase;
+  }
+  io.emit("state:update", state);
+}
 
 // ─── Socket Handlers ──────────────────────────────────────────────────────────
 
@@ -741,6 +780,19 @@ io.on("connection", (socket) => {
       wager: null,
       buzz:  freshBuzz(),
     };
+    // Log clue selected event
+    if (state.testMode) {
+      const col = state.board?.columns[colIndex];
+      const cl  = col?.clues[rowIndex];
+      testLog("clue_selected", {
+        category: col?.title,
+        value: cl?.value,
+        isDD: cl?.isDD,
+        hasMedia: !!cl?.mediaUrl,
+        mediaType: cl?.mediaType ?? null,
+        colIndex, rowIndex,
+      });
+    }
     emitState();
     // Trigger bot buzzes if in test mode
     if (state.testMode) setTimeout(triggerBotBuzzes, 100);
@@ -897,6 +949,12 @@ io.on("connection", (socket) => {
 
   // ─── Mark answer ──────────────────────────────────────────────────────────
   socket.on("host:mark", ({ result }) => {
+    // Log manual mark in test mode
+    if (state.testMode && state.buzz.locked) {
+      const p = state.players.find((x) => x.id === state.buzz.playerId);
+      const team = state.teams.find((t) => t.id === state.buzz.teamId);
+      testLog("host_mark", { result, player: p?.name, teamId: state.buzz.teamId, scoreBefore: team?.score ?? 0, value: state.currentClue?.value ?? 0 });
+    }
     if (!state.currentClue) return;
     clearBuzzWindow();
 
